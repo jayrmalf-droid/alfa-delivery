@@ -108,7 +108,7 @@ export class DatabaseAdapter {
             for (const [key, value] of Object.entries(this.seedData)) {
               if (!['alfa_orders', 'alfa_customers'].includes(key)) {
                 await client.query(
-                  'INSERT INTO records(key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING',
+                  'INSERT INTO records(key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
                   [key, JSON.stringify(value)]
                 );
               }

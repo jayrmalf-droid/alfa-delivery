@@ -197,6 +197,12 @@ test('upload de imagem valida tipo, tamanho e requer administrador', async () =>
   const fileRes = await fetch(origin + uploadRes.data.url);
   assert.equal(fileRes.status, 200);
   assert.equal(fileRes.headers.get('content-type'), 'image/png');
+
+  // Limpar arquivo de teste gravado para não sujar o repositório
+  const uploadedFilePath = path.resolve('public', '.' + uploadRes.data.url);
+  if (fs.existsSync(uploadedFilePath)) {
+    try { fs.unlinkSync(uploadedFilePath); } catch {}
+  }
 });
 
 test('produto pausado rejeita pedido e é tratado como indisponível', async () => {

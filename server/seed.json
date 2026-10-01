@@ -20315,6 +20315,8 @@
       "updated_at": "2026-09-06T13:29:36.742922+00:00"
     }
   ],
+  "alfa_orders": [],
+  "alfa_customers": [],
   "alfa_flavors": [
     {
       "id": "flv_coxinha",
@@ -20455,7 +20457,5 @@
       "button_target_value": "99edb4b4-05c5-44e3-8670-7dddae5ad38d",
       "updated_at": "2026-10-01T03:04:10.047Z"
     }
-  ],
-  "alfa_orders": [],
-  "alfa_customers": []
+  ]
 }

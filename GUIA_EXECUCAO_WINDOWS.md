@@ -51,7 +51,7 @@ Caso seja a primeira instalação ou queira redefinir o acesso ao painel adminis
 
 | Comando | Descrição |
 |---|---|
-| `npm test` | Executa a suíte completa com os 25 testes de aceitação automatizados. |
+| `npm test` | Executa a suíte completa com os 26 testes de aceitação automatizados. |
 | `npm run dev` | Inicia o servidor de desenvolvimento do Vite com Hot Reload (porta 5173). |
 | `npm run server` | Inicia a API Node.js local com reload automático ao alterar arquivos. |
 | `npm run build` | Valida tipagem TypeScript e gera o pacote otimizado de produção em `dist/`. |
@@ -61,7 +61,16 @@ Caso seja a primeira instalação ou queira redefinir o acesso ao painel adminis
 
 ---
 
-## 5. Cuidados e Preservação de Dados
+## 5. Acesso pelo Celular ou Outro PC na Mesma Rede (Wi-Fi)
+
+Ao iniciar pelo `INICIAR_WINDOWS.bat`, o servidor escuta em todas as interfaces de rede (`0.0.0.0`) e exibe automaticamente o endereço para acesso no terminal:
+- **No próprio computador**: `http://localhost:3001`
+- **Pelo celular ou outro PC no mesmo Wi-Fi**: `http://<IP-DO-SEU-PC>:3001` (ex: `http://192.168.1.15:3001`)
+- **Painel Administrativo**: `http://<IP-DO-SEU-PC>:3001/admin`
+
+---
+
+## 6. Cuidados e Preservação de Dados
 
 1. **Pasta `data/` na raiz**:
    Contém o arquivo de banco de dados SQLite `alfa.sqlite`. **NUNCA** apague esta pasta ao atualizar o layout ou código, pois ela contém seus produtos cadastrados, pedidos, histórico e configurações.

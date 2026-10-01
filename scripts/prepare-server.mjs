@@ -34,4 +34,18 @@ for (const product of data.alfa_products) {
   for(const flavor of data.alfa_flavors.filter(f=>f.is_active&&!/churros/i.test(f.name)))data.alfa_product_options.push({id:`${id}-${flavor.id}`,group_id:id,name:flavor.name,price:0,is_available:true,is_active:true,step,sort_order:flavor.sort_order});
  }
 }
+// Se houver banco local SQLite com customizações mais recentes, incorporá-las no seed
+if (fs.existsSync('data/alfa.sqlite')) {
+  try {
+    const { DatabaseSync } = await import('node:sqlite');
+    const sqlite = new DatabaseSync('data/alfa.sqlite');
+    const rows = sqlite.prepare('SELECT key, value FROM records').all();
+    for (const r of rows) {
+      if (!['alfa_orders', 'alfa_customers'].includes(r.key)) {
+        data[r.key] = JSON.parse(r.value);
+      }
+    }
+  } catch {}
+}
+
 fs.mkdirSync('server',{recursive:true});fs.writeFileSync('server/seed.json',JSON.stringify(data,null,2));fs.copyFileSync(path.join(dir,'rules.mjs'),'server/rules.mjs');fs.copyFileSync(path.join(dir,'catalog.mjs'),'server/catalog.mjs');fs.rmSync(dir,{recursive:true});

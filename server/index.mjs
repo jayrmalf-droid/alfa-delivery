@@ -9,9 +9,9 @@ import { DatabaseAdapter } from './database.mjs';
 
 const port = Number(process.env.PORT || 3001);
 const production = process.env.NODE_ENV === 'production';
-const publicUrl = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL;
-if (production && (!publicUrl?.startsWith('https://') || !process.env.ADMIN_PASSWORD_HASH || !process.env.ADMIN_EMAIL)) {
-  throw new Error('Configure PUBLIC_URL com HTTPS e o administrador antes de publicar.');
+let publicUrl = process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || '';
+if (production && (!process.env.ADMIN_PASSWORD_HASH || !process.env.ADMIN_EMAIL)) {
+  throw new Error('Configure o administrador (ADMIN_EMAIL e ADMIN_PASSWORD_HASH) antes de publicar.');
 }
 
 const seed = JSON.parse(fs.readFileSync(new URL('./seed.json', import.meta.url), 'utf8'));
@@ -248,8 +248,11 @@ const server = http.createServer(async (req, res) => {
       rate(req, 'api', 250);
       if (req.method !== 'GET') {
         if (!String(req.headers['content-type']).startsWith('application/json')) fail('Formato de requisição inválido.', 415);
-        const allowed = publicUrl ? new URL(publicUrl).origin : `http://${req.headers.host}`;
-        if (req.headers.origin && req.headers.origin !== allowed) fail('Origem não autorizada.', 403);
+        const originHost = req.headers['x-forwarded-host'] || req.headers.host;
+        const originProto = req.headers['x-forwarded-proto'] || (production ? 'https' : 'http');
+        const currentOrigin = `${originProto}://${originHost}`;
+        const allowed = (publicUrl && publicUrl.startsWith('http')) ? new URL(publicUrl).origin : currentOrigin;
+        if (req.headers.origin && req.headers.origin !== allowed && req.headers.origin !== currentOrigin) fail('Origem não autorizada.', 403);
         if (req.headers['sec-fetch-site'] === 'cross-site') fail('Requisição não autorizada.', 403);
       }
       const isAdmin = await session(req);

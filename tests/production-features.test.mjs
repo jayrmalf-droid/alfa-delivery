@@ -129,6 +129,12 @@ test('separação de status do pedido e status financeiro com baixa manual de pa
     total: product.promo_price || product.price
   };
 
+  // Garantir loja aberta para o teste de pedido
+  await request('/api/data/alfa_settings', 'PUT', {
+    value: { ...snapshot.data.alfa_settings, is_open_override: true, is_paused: false },
+    version: snapshot.versions.alfa_settings
+  }, { Cookie: adminCookie });
+
   const orderRes = await request('/api/orders', 'POST', orderPayload);
   assert.equal(orderRes.status, 201);
   const order = orderRes.data;

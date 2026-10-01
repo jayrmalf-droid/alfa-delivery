@@ -19,18 +19,36 @@ export class DatabaseAdapter {
         throw new Error('Configuração de PostgreSQL incompleta: variável DATABASE_URL é obrigatória.');
       }
       try {
+        const isRenderInternal = /dpg-[a-z0-9]+(-a)?(:|\/|\.)/i.test(this.databaseUrl) && !/sslmode=require/i.test(this.databaseUrl);
         const poolConfig = {
           connectionString: this.databaseUrl,
           max: 10,
           idleTimeoutMillis: 30000,
           connectionTimeoutMillis: 10000
         };
-        // Em produção ou conexões com Supabase / Cloud Run, habilitar SSL seguro
-        if (process.env.NODE_ENV === 'production' || /supabase\.co|\.cloud|sslmode=require/i.test(this.databaseUrl)) {
+        // Habilitar SSL para bancos gerenciados externos (Supabase, Neon, etc.), mas não forçar em rede interna Render
+        if (!isRenderInternal && (process.env.NODE_ENV === 'production' || /supabase\.co|\.cloud|sslmode=require/i.test(this.databaseUrl))) {
           poolConfig.ssl = { rejectUnauthorized: false };
         }
         this.pgPool = new pg.Pool(poolConfig);
-        const client = await this.pgPool.connect();
+        let client;
+        try {
+          client = await this.pgPool.connect();
+        } catch (connErr) {
+          if (/ssl|not support/i.test(connErr.message)) {
+            console.warn('Tentativa com SSL falhou ou servidor não suporta SSL. Alternando modo...');
+            await this.pgPool.end().catch(() => {});
+            if (poolConfig.ssl) {
+              delete poolConfig.ssl;
+            } else {
+              poolConfig.ssl = { rejectUnauthorized: false };
+            }
+            this.pgPool = new pg.Pool(poolConfig);
+            client = await this.pgPool.connect();
+          } else {
+            throw connErr;
+          }
+        }
         try {
           await client.query(`
             CREATE TABLE IF NOT EXISTS records (

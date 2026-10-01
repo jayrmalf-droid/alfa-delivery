@@ -3,12 +3,14 @@ databases:
     databaseName: alfadelivery
     user: alfa
     plan: free
+    region: oregon
 
 services:
   - type: web
     name: alfa-salgados
     runtime: docker
     plan: free
+    region: oregon
     envVars:
       - key: NODE_ENV
         value: production
@@ -16,6 +18,8 @@ services:
         fromDatabase:
           name: alfa-db
           property: connectionString
+      - key: PUBLIC_URL
+        value: https://alfa-salgados.onrender.com
       - key: ADMIN_EMAIL
         value: jayrm@gmail.com
       - key: ADMIN_PASSWORD_HASH

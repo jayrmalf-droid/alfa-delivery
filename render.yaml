@@ -1,0 +1,22 @@
+databases:
+  - name: alfa-db
+    databaseName: alfadelivery
+    user: alfa
+    plan: free
+
+services:
+  - type: web
+    name: alfa-salgados
+    runtime: docker
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alfa-db
+          property: connectionString
+      - key: ADMIN_EMAIL
+        value: jayrm@gmail.com
+      - key: ADMIN_PASSWORD_HASH
+        value: a31e86f6b0e1958d2a239ae3f84d5e7b:e7f32bbcefd9efbddc3f7fc66b2ca8a7144cb9a96c9bb7d94189e4f6454212c666eae990265d73485270cf77281efebd636f62a15d45e212f09fa46826fc8d57

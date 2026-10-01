@@ -1,0 +1,19 @@
+{
+  "short_name": "Alfa Salgados",
+  "name": "Alfa Salgados - Cardápio Digital & Delivery",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#fcfaf7",
+  "theme_color": "#dc2626",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "description": "Peça salgados, combos e bebidas com entrega rápida em Vitória da Conquista."
+}

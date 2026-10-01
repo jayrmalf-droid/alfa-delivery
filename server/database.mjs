@@ -19,35 +19,64 @@ export class DatabaseAdapter {
         throw new Error('Configuração de PostgreSQL incompleta: variável DATABASE_URL é obrigatória.');
       }
       try {
-        const isRenderInternal = /dpg-[a-z0-9]+(-a)?(:|\/|\.)/i.test(this.databaseUrl) && !/sslmode=require/i.test(this.databaseUrl);
-        const poolConfig = {
-          connectionString: this.databaseUrl,
-          max: 10,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 10000
-        };
-        // Habilitar SSL para bancos gerenciados externos (Supabase, Neon, etc.), mas não forçar em rede interna Render
-        if (!isRenderInternal && (process.env.NODE_ENV === 'production' || /supabase\.co|\.cloud|sslmode=require/i.test(this.databaseUrl))) {
-          poolConfig.ssl = { rejectUnauthorized: false };
-        }
-        this.pgPool = new pg.Pool(poolConfig);
         let client;
-        try {
-          client = await this.pgPool.connect();
-        } catch (connErr) {
-          if (/ssl|not support/i.test(connErr.message)) {
-            console.warn('Tentativa com SSL falhou ou servidor não suporta SSL. Alternando modo...');
-            await this.pgPool.end().catch(() => {});
-            if (poolConfig.ssl) {
-              delete poolConfig.ssl;
-            } else {
-              poolConfig.ssl = { rejectUnauthorized: false };
-            }
-            this.pgPool = new pg.Pool(poolConfig);
-            client = await this.pgPool.connect();
-          } else {
-            throw connErr;
+        let lastError;
+        const candidateUrls = [this.databaseUrl];
+
+        // Se for um hostname interno curto do Render (sem ponto no host), testar resolução direta e com sufixos de região
+        const hostMatch = this.databaseUrl.match(/@([^/:]+)([:/])/);
+        if (hostMatch && !hostMatch[1].includes('.')) {
+          const shortHost = hostMatch[1];
+          for (const region of ['oregon', 'ohio', 'frankfurt', 'virginia', 'singapore']) {
+            candidateUrls.push(this.databaseUrl.replace(`@${shortHost}`, `@${shortHost}.${region}-postgres.render.com`));
           }
+        }
+
+        for (const currentUrl of candidateUrls) {
+          const isRenderInternal = /dpg-[a-z0-9]+(-a)?(:|\/|\.)/i.test(currentUrl) && !/render\.com|sslmode=require/i.test(currentUrl);
+          const poolConfig = {
+            connectionString: currentUrl,
+            max: 10,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 10000
+          };
+          if (!isRenderInternal && (process.env.NODE_ENV === 'production' || /render\.com|supabase\.co|\.cloud|sslmode=require/i.test(currentUrl))) {
+            poolConfig.ssl = { rejectUnauthorized: false };
+          }
+
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              this.pgPool = new pg.Pool(poolConfig);
+              client = await this.pgPool.connect();
+              break;
+            } catch (err) {
+              lastError = err;
+              await this.pgPool.end().catch(() => {});
+              if (/ssl|not support/i.test(err.message)) {
+                if (poolConfig.ssl) delete poolConfig.ssl;
+                else poolConfig.ssl = { rejectUnauthorized: false };
+                try {
+                  this.pgPool = new pg.Pool(poolConfig);
+                  client = await this.pgPool.connect();
+                  break;
+                } catch (sslRetryErr) {
+                  lastError = sslRetryErr;
+                  await this.pgPool.end().catch(() => {});
+                }
+              }
+              if (attempt < 3 && /ENOTFOUND|ECONNREFUSED/i.test(err.message)) {
+                await new Promise(r => setTimeout(r, 2000));
+              }
+            }
+          }
+          if (client) {
+            console.log(`PostgreSQL conectado com sucesso via ${currentUrl.replace(/:[^:@]+@/, ':****@')}`);
+            break;
+          }
+        }
+
+        if (!client) {
+          throw lastError || new Error('Não foi possível conectar ao PostgreSQL.');
         }
         try {
           await client.query(`

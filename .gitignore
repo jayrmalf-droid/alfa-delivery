@@ -24,7 +24,7 @@ dist-ssr
 *.sw?
 
 .env
-data/
+/data/
 *.sqlite*
 backups/
 *.zip

@@ -438,6 +438,26 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
+  const origin = req.headers.origin;
+  if (origin && (
+    origin.endsWith('.web.app') || 
+    origin.endsWith('.firebaseapp.com') || 
+    origin.includes('localhost') || 
+    origin.includes('127.0.0.1') ||
+    origin.endsWith('.onrender.com')
+  )) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  }
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   const url = new URL(req.url, 'http://localhost');
 
   try {

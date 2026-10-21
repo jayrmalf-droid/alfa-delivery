@@ -1,0 +1,86 @@
+/* 0.8.6 — promotion and delivery workspaces; never applied to the storefront. */
+.admin-shell :is(.admin-coupons-polish,.admin-banners-polish,.admin-neighborhoods-polish) .campaign-heading{margin:0}
+.admin-shell :is(.admin-coupons-polish,.admin-banners-polish) [data-admin-ui~=toolbar]:not(.campaign-heading):not(.campaign-filterbar){padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important;border-radius:0}
+.admin-shell .campaign-heading>button{flex-shrink:0;min-height:44px}
+.admin-shell .campaign-heading>div:first-child>div{min-width:0}
+.admin-shell .campaign-heading h2{overflow-wrap:anywhere}
+.admin-shell .campaign-workspace{gap:20px!important}
+.admin-shell .campaign-metrics{min-width:0;gap:12px!important}
+.admin-shell .campaign-metrics>div{min-width:0;overflow-wrap:anywhere;box-shadow:0 5px 19px #17243b04!important}
+.admin-shell .campaign-metrics>div>div:first-child{flex-wrap:wrap;gap:8px}
+.admin-shell .campaign-filterbar{padding:16px!important;border:1px solid #dfe6ef!important;border-radius:16px!important;background:#fff!important;box-shadow:0 4px 18px #17243b04!important;min-width:0;display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.admin-shell .campaign-filterbar>div:first-child{min-width:0!important}
+.admin-shell .campaign-filterbar input{width:100%;min-width:0}
+.admin-shell .campaign-status-filters{display:flex;gap:6px;flex-wrap:wrap;min-width:0}
+.admin-shell .campaign-status-filters>button{min-height:40px;padding:8px 12px;border:1px solid #dce4ef;border-radius:9px;background:#f8fafc;color:#536780;font-size:12px;font-weight:700;cursor:pointer}
+.admin-shell .campaign-status-filters>button[aria-pressed=true]{background:#f8edf2;color:#932543;border-color:#d6a2b4}
+.admin-shell .campaign-results{margin:-6px 0 0;color:#65758d;font-size:12px;line-height:1.6}
+.admin-shell .banner-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.admin-shell .banner-metrics>div{display:flex;flex-direction:column;gap:8px;padding:17px 20px;border:1px solid #dfe6ef;border-radius:16px;background:#fff;color:#64748b;font-size:12px}
+.admin-shell .banner-metrics strong{font-size:26px;line-height:1;color:#17243b}
+.admin-shell .banner-search-label{display:flex;flex-direction:column;gap:7px;min-width:0;flex:1 1 260px;max-width:500px;font-size:12px;font-weight:700;color:#52647d}
+.admin-shell .campaign-banner-card{grid-template-columns:minmax(160px,240px) minmax(0,1fr) auto!important;gap:20px!important;padding:18px!important}
+.admin-shell .campaign-banner-card>div{min-width:0}
+.admin-shell .campaign-banner-card h3,.admin-shell .campaign-banner-card p{overflow-wrap:anywhere}
+.admin-shell .campaign-banner-card>div:nth-child(2)>div:last-child{flex-wrap:wrap;max-width:100%;overflow-wrap:anywhere;box-sizing:border-box}
+.admin-shell .banner-card-actions{min-width:110px;gap:10px!important}
+.admin-shell .banner-card-actions>button{border:1px solid #e1e7f0!important;border-radius:9px;padding:8px 12px!important;background:#f8fafc!important;min-height:38px;width:100%}
+.admin-shell .coupon-card-actions{flex-wrap:wrap}
+.admin-shell .coupon-code-row{flex-wrap:wrap;min-width:0}
+.admin-shell .coupon-code-row>div{min-width:0;max-width:100%;box-sizing:border-box}
+.admin-shell .coupon-code-row>div>span{min-width:0;overflow-wrap:anywhere}
+.admin-shell .coupon-code-row>button{margin-left:auto;flex-shrink:0}
+.admin-shell .admin-coupon-ticket{border-radius:18px!important}
+.admin-shell .neighborhood-filterbar>div:last-child{min-width:0}
+.admin-shell .neighborhood-filterbar select{max-width:100%;min-width:0}
+.admin-shell .neighborhoods-responsive-table{max-height:650px;overflow-y:auto!important}
+@media(max-width:1100px){
+ .admin-shell .campaign-banner-card{grid-template-columns:180px minmax(0,1fr)!important}
+ .admin-shell .banner-card-actions{grid-column:1/-1;flex-direction:row!important;justify-content:flex-end;align-items:center!important;padding-top:12px;border-top:1px solid #e8edf4}
+ .admin-shell .banner-card-actions>button{width:auto}
+}
+@media(max-width:650px){
+ .admin-shell .admin-coupons-polish .campaign-heading>div:first-child>div{flex-wrap:nowrap!important}
+ .admin-shell .admin-coupons-polish .campaign-heading>div:first-child>div>div:first-child{flex-shrink:0}
+ .admin-shell .admin-coupons-polish .campaign-heading>div:first-child>div>div:last-child{min-width:0;flex:1}
+ .admin-shell .coupon-code-entry{flex-direction:column}
+ .admin-shell .coupon-code-entry input{width:100%;flex:none!important;min-width:0;box-sizing:border-box}
+ .admin-shell .coupon-code-entry button{align-self:flex-start;min-height:40px}
+ .admin-shell .neighborhood-toast{bottom:100px!important;left:12px;right:12px;max-width:calc(100% - 24px);padding:12px!important;font-size:12px!important;z-index:1101!important}
+ .admin-shell .campaign-heading>button,.admin-shell .campaign-heading>.admin-section-actions{width:100%;justify-content:center}
+ .admin-shell .campaign-heading>div:first-child>div{flex-wrap:wrap}
+ .admin-shell .campaign-heading .admin-section-actions>button{flex:1 1 135px;justify-content:center}
+ .admin-shell .campaign-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+ .admin-shell .campaign-metrics>div{padding:14px!important;border-radius:14px}
+ .admin-shell .campaign-metrics>div>div:nth-child(2){font-size:23px!important}
+ .admin-shell .campaign-metrics>div>div:first-child>span:first-child{font-size:10px!important}
+ .admin-shell .banner-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ .admin-shell .banner-metrics>div{padding:12px!important;font-size:11px}
+ .admin-shell .banner-metrics strong{font-size:23px}
+ .admin-shell .campaign-filterbar{display:flex!important;flex-direction:column;align-items:stretch!important;padding:14px!important;gap:12px!important}
+ .admin-shell .campaign-filterbar>div,.admin-shell .campaign-filterbar>label{width:100%!important;max-width:100%!important;min-width:0!important;flex-basis:auto}
+ .admin-shell .campaign-status-filters{width:100%;gap:6px!important;flex-wrap:wrap!important}
+ .admin-shell .campaign-status-filters>button{flex:1 1 90px;font-size:11px!important;padding:8px!important;min-width:0}
+ .admin-shell .neighborhood-filterbar>div:last-child{width:100%;display:flex;flex-direction:column;align-items:stretch!important}
+ .admin-shell .neighborhood-filterbar>div:last-child>div:last-child{justify-content:space-between;min-width:0}
+ .admin-shell .neighborhood-filterbar select{flex:1;max-width:70%}
+ .admin-shell .campaign-banner-card{grid-template-columns:minmax(0,1fr)!important;padding:14px!important;gap:16px!important}
+ .admin-shell .campaign-banner-card>div:first-child{height:155px!important}
+ .admin-shell .banner-card-actions{grid-column:1;flex-wrap:wrap}
+ .admin-shell .banner-card-actions>button{margin-right:auto;flex:1 1 90px}
+ .admin-shell .banner-card-actions>div{flex-shrink:0}
+ .admin-shell .neighborhoods-responsive-table table{min-width:0!important}
+ .admin-shell .neighborhoods-responsive-table thead{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ .admin-shell .neighborhoods-responsive-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:16px 12px;gap:12px;border-bottom:1px solid #e3eaf3}
+ .admin-shell .neighborhoods-responsive-table tbody td{display:block;min-width:0;padding:0!important;border:0!important;overflow-wrap:anywhere}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(1){grid-column:1/-1}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(2){grid-column:1}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(2):before{content:'Taxa de entrega';display:block;font-size:10px;color:#64748b;margin-bottom:4px}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(3){grid-column:2}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(3):before{content:'Tempo estimado';display:block;font-size:10px;color:#64748b;margin-bottom:4px}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(4){grid-column:1;align-self:center;text-align:left!important}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(5){grid-column:2}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(5)>div{flex-wrap:wrap;gap:6px!important}
+ .admin-shell .neighborhoods-responsive-table td:nth-child(2):has(input){grid-column:1/-1}
+ .admin-shell .neighborhoods-responsive-table td[colspan]{grid-column:1/-1}
+}

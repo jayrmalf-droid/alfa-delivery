@@ -1,0 +1,52 @@
+/* Camada visual do cliente; não alcança o painel administrativo. */
+.storefront { font-family:Inter,"Segoe UI",Arial,sans-serif; --menu-line:var(--border-subtle); --menu-ink:var(--text-main); --menu-muted:var(--text-muted); }
+.storefront .store-header { background:#fff; box-shadow:0 4px 22px #39271c05; }
+.storefront .navigation-inner { min-height:80px; }
+.storefront .brand-text strong { font-size:23px; font-weight:800; letter-spacing:-.8px; }
+.storefront .store-navigation { background:#f6f5f3; border-color:#eeebe6; }
+.storefront .store-navigation .nav-active-pill { color:var(--color-primary); box-shadow:0 2px 8px #33231a0d; }
+.storefront .header-cart-btn { border-radius:14px; min-height:46px; box-shadow:0 4px 12px #a9192814; }
+.storefront .campaign-panel { border-radius:28px; background:linear-gradient(120deg,#fff9f1,#f4e9dc); border-color:#eadecf; box-shadow:none; min-height:360px; }
+.storefront .campaign-copy { padding:32px; }
+.storefront .campaign-copy h1 { font-size:clamp(32px,3.8vw,52px); font-weight:800; line-height:1.12; letter-spacing:-1.7px; }
+.storefront .campaign-copy p { color:#655e57; }
+.storefront .campaign-primary { border-radius:14px; min-height:48px; box-shadow:0 6px 18px #a9192818; }
+.storefront .campaign-visual { border-radius:20px; }
+.storefront .catalog-main { padding-top:32px; }
+.storefront .catalog-heading { padding:24px; border:1px solid var(--border-subtle); border-radius:22px; background:#fff; gap:22px; box-shadow:0 4px 20px #39271c04; }
+.storefront .catalog-eyebrow { font-size:10px; font-weight:800; letter-spacing:1.5px; color:var(--color-primary); }
+.storefront .catalog-heading h2 { font-size:clamp(27px,3vw,38px); letter-spacing:-1.2px; font-weight:800; line-height:1.2; margin:10px 0; }
+.storefront .catalog-heading p { font-size:14px; line-height:1.6; color:var(--text-muted); }
+.storefront .catalog-search { background:var(--theme-surface-soft); border:1px solid var(--border-subtle); border-radius:14px; min-height:50px; box-shadow:none; }
+.storefront .catalog-search:focus-within { border-color:var(--color-primary); box-shadow:0 0 0 3px #a9192810; }
+.storefront .catalog-search input { font-size:14px; }
+.storefront .catalog-view-toggle { background:var(--theme-surface-soft); border-radius:13px; border:1px solid var(--border-subtle); }
+.storefront .catalog-view-btn { min-height:40px; border-radius:9px; }
+.storefront .catalog-categories { background:var(--bg-page); padding:12px 0; border-bottom:0; }
+.storefront .category-list { gap:9px; padding:4px 2px; }
+.storefront .category-list>button { min-height:46px; padding:11px 17px; border:1px solid #e6dfd6; background:#fff; border-radius:14px; color:#645b53; font-size:12px; font-weight:700; white-space:nowrap; }
+.storefront .category-list>button.selected { background:var(--color-primary); color:#fff; border-color:var(--color-primary); box-shadow:0 4px 10px #a9192817; }
+.storefront .category-list>button.in-view:not(.selected) { background:#f7eceb; border-color:#dfb9bb; color:var(--color-primary); }
+.storefront .catalog-sort-tools { background:#fff; border-color:var(--border-subtle); border-radius:16px; padding:12px 16px; gap:12px; }
+.storefront .catalog-sort-tools select { background:var(--theme-surface-soft); border-color:var(--border-subtle); border-radius:10px; }
+.storefront .catalog-sort-tools p { font-size:12px; color:var(--text-muted); }
+.storefront .product-content h3 { font-weight:750; }
+@media(max-width:640px) {
+ .storefront .navigation-inner { min-height:70px; gap:12px; }
+ .storefront .brand-text strong { font-size:19px; }
+ .storefront .store-hero { padding-top:16px; }
+ .storefront .campaign-panel { min-height:0; border-radius:22px; }
+ .storefront .campaign-copy { padding:24px 22px 18px; }
+ .storefront .campaign-copy h1 { font-size:32px; letter-spacing:-1px; margin:14px 0 12px; }
+ .storefront .campaign-copy p { font-size:13px; line-height:1.6; }
+ .storefront .campaign-visual,.storefront .campaign-visual img { height:180px; min-height:0; }
+ .storefront .campaign-actions { margin:16px 0 12px; }
+ .storefront .catalog-main { padding-top:24px; }
+ .storefront .catalog-heading { padding:18px; gap:16px; border-radius:18px; }
+ .storefront .catalog-heading h2 { font-size:28px; }
+ .storefront .catalog-heading p { font-size:13px; }
+ .storefront .catalog-toolbar { gap:10px; }
+ .storefront .catalog-search { padding:12px; }
+ .storefront .catalog-sort-tools { padding:12px; }
+}
+.storefront :is(h1,h2,h3,h4,h5,h6,button,input,select,textarea) { font-family:Inter,"Segoe UI",Arial,sans-serif; }

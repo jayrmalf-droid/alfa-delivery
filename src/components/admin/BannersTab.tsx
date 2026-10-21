@@ -1,3 +1,6 @@
+import { normalizeAdminSearch } from '../../domain/adminInput';
+import { useDialog } from '../../utils/useDialog';
+import { useConfirmedSave } from '../../utils/useConfirmedSave';
 import React, { useState, useRef, useEffect } from 'react';
 import { PromoBanner, Category, Product } from '../../types';
 import { StorageService } from '../../services/storageService';
@@ -26,7 +29,13 @@ import {
 } from 'lucide-react';
 
 export const BannersTab: React.FC = () => {
+  const { saving, saveError, runSave } = useConfirmedSave();
   const [banners, setBanners] = useState<PromoBanner[]>(() => StorageService.getBanners());
+  const [bannerQuery, setBannerQuery] = useState('');
+  const [bannerStatus, setBannerStatus] = useState('all');
+  const visibleBanners = banners.filter(banner => normalizeAdminSearch(`${banner.title} ${banner.subtitle || ''} ${banner.button_title || ''}`).includes(normalizeAdminSearch(bannerQuery))
+    && (bannerStatus === 'all' || (bannerStatus === 'active' ? banner.is_active : !banner.is_active)));
+
   const [editingBanner, setEditingBanner] = useState<PromoBanner | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -176,7 +185,7 @@ export const BannersTab: React.FC = () => {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title?.trim() || !formData.image_desktop?.trim()) {
       setUploadError('Por favor, informe o título e selecione a imagem do banner Desktop.');
@@ -205,19 +214,19 @@ export const BannersTab: React.FC = () => {
       button_target_value: formData.button_target_value?.trim() || 'combos'
     };
 
-    StorageService.upsertBanner(toSave);
+    if (!await runSave(() => StorageService.upsertBanner(toSave))) return;
     setBanners(StorageService.getBanners());
     setIsModalOpen(false);
   };
 
-  const handleToggle = (id: string) => {
-    StorageService.toggleBanner(id);
+  const handleToggle = async (id: string) => {
+    if (!await runSave(() => StorageService.toggleBanner(id))) return;
     setBanners(StorageService.getBanners());
   };
 
-  const handleDelete = (id: string, title: string) => {
+  const handleDelete = async (id: string, title: string) => {
     if (window.confirm(`Deseja remover o banner "${title}"?`)) {
-      StorageService.deleteBanner(id);
+      if (!await runSave(() => StorageService.deleteBanner(id))) return;
       setBanners(StorageService.getBanners());
     }
   };
@@ -257,13 +266,19 @@ export const BannersTab: React.FC = () => {
     ? formData.image_desktop
     : (sameAsDesktop ? formData.image_desktop : formData.image_mobile || formData.image_desktop);
 
+  useDialog(isModalOpen, () => { if (saving) return; setIsModalOpen(false); });
+
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <fieldset disabled={saving} aria-busy={saving} className="confirmed-save-fields admin-banners-polish">
+      {saveError && <p role="alert" className="confirmed-save-error">{saveError}</p>}
+      {saving && <p role="status">Aguardando confirmação de gravação…</p>}
+    <div className="campaign-workspace" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div className="admin-section-heading campaign-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }} data-admin-ui="toolbar">
         <div>
+          <span className="admin-section-eyebrow">VITRINE DA LOJA</span>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-            Banners Promocionais & Destaques
+            Banners promocionais
           </h2>
           <p style={{ fontSize: '0.88rem', color: '#64748b', margin: '4px 0 0' }}>
             Configure os banners visíveis na vitrine e o botão de isca flutuante para direcionar clientes a produtos, categorias e promoções.
@@ -282,38 +297,41 @@ export const BannersTab: React.FC = () => {
             alignItems: 'center',
             gap: 6
           }}
-        >
+         data-admin-ui="button">
           <Plus size={16} />
           <span>Novo Banner</span>
         </button>
       </div>
 
+      <section className="campaign-metrics banner-metrics" aria-label="Resumo dos banners"><div><span>Total de banners</span><strong>{banners.length}</strong></div><div><span>Ativos</span><strong>{banners.filter(b=>b.is_active).length}</strong></div><div><span>Inativos</span><strong>{banners.filter(b=>!b.is_active).length}</strong></div></section>
+      <div className="campaign-filterbar" data-admin-ui="toolbar"><label className="banner-search-label">Buscar banners<input type="search" aria-label="Buscar banners" placeholder="Título, descrição ou botão..." value={bannerQuery} onChange={event=>setBannerQuery(event.target.value)} data-admin-ui="field"/></label><div className="campaign-status-filters" role="group" aria-label="Situação dos banners">{[{id:'all',label:'Todos'},{id:'active',label:'Ativos'},{id:'inactive',label:'Inativos'}].map(item=><button key={item.id} type="button" aria-pressed={bannerStatus===item.id} onClick={()=>setBannerStatus(item.id)} data-admin-ui="button">{item.label}</button>)}</div></div>
+      <p className="campaign-results" role="status">{visibleBanners.length} banner(s) encontrado(s)</p>
       {/* Banners List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {banners.length === 0 ? (
+        {visibleBanners.length === 0 ? (
           <div style={{
             textAlign: 'center',
             padding: '48px 24px',
             background: '#ffffff',
             borderRadius: 16,
             border: '2px dashed #e2e8f0'
-          }}>
+          }} data-admin-ui="panel">
             <ImageIcon size={40} style={{ color: '#94a3b8', margin: '0 auto 12px' }} />
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b', margin: '0 0 6px' }}>
-              Nenhum banner cadastrado
+              {banners.length ? 'Nenhum banner encontrado' : 'Nenhum banner cadastrado'}
             </h3>
             <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 16px' }}>
-              Crie banners chamativos para divulgar centos, combos e novidades na página inicial.
+              {banners.length ? 'Tente outro termo ou altere o filtro de situação.' : 'Crie banners para divulgar centos, combos e novidades na página inicial.'}
             </p>
-            <button onClick={handleOpenCreate} className="btn btn-primary">
-              <Plus size={16} /> Criar Primeiro Banner
+            <button onClick={banners.length ? ()=>{setBannerQuery('');setBannerStatus('all');} : handleOpenCreate} className="btn btn-primary" data-admin-ui="button">
+              <Plus size={16} /> {banners.length ? 'Limpar filtros' : 'Criar Primeiro Banner'}
             </button>
           </div>
         ) : (
-          banners.map(b => (
+          visibleBanners.map(b => (
             <div
               key={b.id}
-              className="card"
+              className="card campaign-banner-card"
               style={{
                 backgroundColor: '#ffffff',
                 borderRadius: 16,
@@ -327,7 +345,7 @@ export const BannersTab: React.FC = () => {
                 opacity: b.is_active ? 1 : 0.65,
                 transition: 'all 0.2s ease'
               }}
-            >
+             data-admin-ui="panel grid">
               {/* Image Preview with Desktop and Mobile indicators */}
               <div style={{
                 height: 125,
@@ -399,7 +417,7 @@ export const BannersTab: React.FC = () => {
 
               {/* Info */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }} data-admin-ui="toolbar">
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
                     {b.title}
                   </h3>
@@ -451,7 +469,7 @@ export const BannersTab: React.FC = () => {
               </div>
 
               {/* Actions */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+              <div className="banner-card-actions" style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
                 <button
                   onClick={() => handleToggle(b.id)}
                   style={{
@@ -462,7 +480,7 @@ export const BannersTab: React.FC = () => {
                     color: b.is_active ? '#dc2626' : '#16a34a',
                     cursor: 'pointer'
                   }}
-                >
+                 data-admin-ui="button">
                   {b.is_active ? 'Desativar' : 'Ativar'}
                 </button>
 
@@ -483,7 +501,7 @@ export const BannersTab: React.FC = () => {
                       fontWeight: 600
                     }}
                     title="Editar Banner, Imagens e Botão de Isca"
-                  >
+                   data-admin-ui="button">
                     <Edit2 size={14} /> Editar
                   </button>
 
@@ -498,7 +516,7 @@ export const BannersTab: React.FC = () => {
                       color: '#dc2626'
                     }}
                     title="Excluir Banner"
-                  >
+                   aria-label="Excluir Banner" data-admin-ui="button">
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -520,7 +538,7 @@ export const BannersTab: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           padding: 16
-        }}>
+        }} data-admin-ui="overlay">
           <div style={{
             backgroundColor: '#ffffff',
             borderRadius: 20,
@@ -531,7 +549,7 @@ export const BannersTab: React.FC = () => {
             flexDirection: 'column',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             overflow: 'hidden'
-          }}>
+          }} role="dialog" aria-modal="true" aria-label="Banner — detalhes e edição" data-admin-ui="panel dialog">
             {/* Modal Header */}
             <div style={{
               padding: '18px 24px',
@@ -540,7 +558,7 @@ export const BannersTab: React.FC = () => {
               alignItems: 'center',
               justifyContent: 'space-between',
               background: '#f8fafc'
-            }}>
+            }} data-admin-ui="dialog-header">
               <div>
                 <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#f97316', letterSpacing: '0.05em' }}>
                   GESTOR DE DESTAQUES E BANNERS
@@ -561,13 +579,13 @@ export const BannersTab: React.FC = () => {
                   cursor: 'pointer',
                   color: '#64748b'
                 }}
-              >
+               aria-label="Fechar" data-admin-ui="button">
                 <X size={20} />
               </button>
             </div>
 
             {/* Modal Scrollable Body */}
-            <form onSubmit={handleSave} style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <form onSubmit={handleSave} style={{ overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }} data-admin-ui="form">
               {uploadError && (
                 <div style={{
                   padding: '10px 14px',
@@ -595,12 +613,12 @@ export const BannersTab: React.FC = () => {
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Seu momento fica muito melhor com Alfa Salgados"
+                    aria-label="Título do banner" placeholder="Ex: Seu momento fica muito melhor com Alfa Salgados"
                     value={formData.title}
                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                     className="form-input"
                     style={{ width: '100%', borderRadius: 10, fontSize: '0.9rem', padding: '10px 14px' }}
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -614,7 +632,7 @@ export const BannersTab: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
                     className="form-input"
                     style={{ width: '100%', borderRadius: 10, fontSize: '0.88rem', padding: '10px 14px' }}
-                  />
+                   data-admin-ui="field"/>
                 </div>
               </div>
 
@@ -664,7 +682,7 @@ export const BannersTab: React.FC = () => {
                   }}
                 />
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }} data-admin-ui="grid">
                   {/* Desktop Image Box */}
                   <div
                     style={{
@@ -685,7 +703,7 @@ export const BannersTab: React.FC = () => {
                       const file = e.dataTransfer.files?.[0];
                       if (file) void processAndUploadImage(file, 'desktop');
                     }}
-                  >
+                   data-admin-ui="panel">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Monitor size={15} style={{ color: '#3b82f6' }} />
@@ -740,7 +758,7 @@ export const BannersTab: React.FC = () => {
                                   gap: 5,
                                   boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                                 }}
-                              >
+                               data-admin-ui="button">
                                 <FolderOpen size={13} /> Trocar foto
                               </button>
                               <button
@@ -757,7 +775,7 @@ export const BannersTab: React.FC = () => {
                                   cursor: 'pointer'
                                 }}
                                 title="Remover"
-                              >
+                               aria-label="Remover" data-admin-ui="button">
                                 <Trash2 size={13} />
                               </button>
                             </>
@@ -783,7 +801,7 @@ export const BannersTab: React.FC = () => {
                           padding: 12,
                           color: '#475569'
                         }}
-                      >
+                       data-admin-ui="button">
                         {uploadingTarget === 'desktop' ? (
                           <>
                             <RefreshCw size={24} style={{ color: '#f97316' }} className="animate-spin" />
@@ -819,7 +837,7 @@ export const BannersTab: React.FC = () => {
                           alignItems: 'center',
                           gap: 4
                         }}
-                      >
+                       data-admin-ui="button">
                         <LinkIcon size={11} />
                         <span>{showManualUrlDesktop ? 'Ocultar URL manual' : 'Ou colar link / endereço da imagem'}</span>
                       </button>
@@ -832,7 +850,7 @@ export const BannersTab: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, image_desktop: e.target.value })}
                           className="form-input"
                           style={{ width: '100%', borderRadius: 8, fontSize: '0.78rem', marginTop: 6, padding: '6px 10px' }}
-                        />
+                         data-admin-ui="field"/>
                       )}
                     </div>
                   </div>
@@ -858,7 +876,7 @@ export const BannersTab: React.FC = () => {
                       const file = e.dataTransfer.files?.[0];
                       if (file) void processAndUploadImage(file, 'mobile');
                     }}
-                  >
+                   data-admin-ui="panel">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Smartphone size={15} style={{ color: '#10b981' }} />
@@ -933,7 +951,7 @@ export const BannersTab: React.FC = () => {
                             textDecoration: 'underline',
                             marginTop: 4
                           }}
-                        >
+                         data-admin-ui="button">
                           Escolher imagem diferente para celular
                         </button>
                       </div>
@@ -983,7 +1001,7 @@ export const BannersTab: React.FC = () => {
                                       gap: 5,
                                       boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
                                     }}
-                                  >
+                                   data-admin-ui="button">
                                     <FolderOpen size={13} /> Trocar foto
                                   </button>
                                   <button
@@ -1000,7 +1018,7 @@ export const BannersTab: React.FC = () => {
                                       cursor: 'pointer'
                                     }}
                                     title="Remover"
-                                  >
+                                   aria-label="Remover" data-admin-ui="button">
                                     <Trash2 size={13} />
                                   </button>
                                 </>
@@ -1026,7 +1044,7 @@ export const BannersTab: React.FC = () => {
                               padding: 12,
                               color: '#475569'
                             }}
-                          >
+                           data-admin-ui="button">
                             {uploadingTarget === 'mobile' ? (
                               <>
                                 <RefreshCw size={24} style={{ color: '#f97316' }} className="animate-spin" />
@@ -1062,7 +1080,7 @@ export const BannersTab: React.FC = () => {
                               alignItems: 'center',
                               gap: 4
                             }}
-                          >
+                           data-admin-ui="button">
                             <LinkIcon size={11} />
                             <span>{showManualUrlMobile ? 'Ocultar URL manual' : 'Ou colar link / endereço da imagem'}</span>
                           </button>
@@ -1075,7 +1093,7 @@ export const BannersTab: React.FC = () => {
                               onChange={(e) => setFormData({ ...formData, image_mobile: e.target.value })}
                               className="form-input"
                               style={{ width: '100%', borderRadius: 8, fontSize: '0.78rem', marginTop: 6, padding: '6px 10px' }}
-                            />
+                             data-admin-ui="field"/>
                           )}
                         </div>
                       </>
@@ -1096,7 +1114,7 @@ export const BannersTab: React.FC = () => {
                 flexDirection: 'column',
                 gap: 16
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }} data-admin-ui="toolbar">
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
                       padding: 8,
@@ -1145,7 +1163,7 @@ export const BannersTab: React.FC = () => {
                 {formData.show_floating_button !== false && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {/* Title, Subtitle, Price */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }} data-admin-ui="grid">
                       <div>
                         <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#9a3412', marginBottom: 4 }}>
                           Título do Botão (Isca) *
@@ -1158,7 +1176,7 @@ export const BannersTab: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, button_title: e.target.value })}
                           className="form-input"
                           style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px', background: '#fff' }}
-                        />
+                         data-admin-ui="field"/>
                       </div>
 
                       <div>
@@ -1172,7 +1190,7 @@ export const BannersTab: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, button_subtitle: e.target.value })}
                           className="form-input"
                           style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px', background: '#fff' }}
-                        />
+                         data-admin-ui="field"/>
                       </div>
 
                       <div>
@@ -1186,7 +1204,7 @@ export const BannersTab: React.FC = () => {
                           onChange={(e) => setFormData({ ...formData, button_price_text: e.target.value })}
                           className="form-input"
                           style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px', background: '#fff' }}
-                        />
+                         data-admin-ui="field"/>
                       </div>
                     </div>
 
@@ -1195,7 +1213,7 @@ export const BannersTab: React.FC = () => {
                       <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#9a3412', marginBottom: 6 }}>
                         Ícone do Botão de Isca
                       </label>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} data-admin-ui="toolbar">
                         {[
                           { id: 'package', label: 'Pacote / Combo', icon: <Package size={16} /> },
                           { id: 'flame', label: 'Quentinho / Frito na Hora', icon: <Flame size={16} /> },
@@ -1223,7 +1241,7 @@ export const BannersTab: React.FC = () => {
                                 cursor: 'pointer',
                                 transition: 'all 0.15s ease'
                               }}
-                            >
+                             data-admin-ui="button">
                               {opt.icon}
                               <span>{opt.label}</span>
                             </button>
@@ -1241,8 +1259,8 @@ export const BannersTab: React.FC = () => {
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 10
-                    }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                    }} data-admin-ui="panel">
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }} data-admin-ui="grid">
                         <div>
                           <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                             Para onde o botão vai direcionar o cliente?
@@ -1260,7 +1278,7 @@ export const BannersTab: React.FC = () => {
                             }}
                             className="form-input"
                             style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px' }}
-                          >
+                           data-admin-ui="field">
                             <option value="category">📁 Categoria do Cardápio</option>
                             <option value="product">🥟 Produto Específico (Abre Modal de Compra)</option>
                             <option value="promos">🏷️ Promoções & Descontos da Loja</option>
@@ -1282,7 +1300,7 @@ export const BannersTab: React.FC = () => {
                               onChange={(e) => setFormData({ ...formData, button_target_value: e.target.value })}
                               className="form-input"
                               style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px' }}
-                            >
+                             data-admin-ui="field">
                               <option value="combos">Combos e Centos (Destaque Principal)</option>
                               {categories.map(c => (
                                 <option key={c.id} value={c.id}>
@@ -1296,7 +1314,7 @@ export const BannersTab: React.FC = () => {
                               onChange={(e) => setFormData({ ...formData, button_target_value: e.target.value })}
                               className="form-input"
                               style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px' }}
-                            >
+                             data-admin-ui="field">
                               {products.map(p => (
                                 <option key={p.id} value={p.id}>
                                   {p.name} {p.promo_price ? `(Promoção: R$ ${p.promo_price.toFixed(2)})` : `(R$ ${p.price.toFixed(2)})`}
@@ -1322,7 +1340,7 @@ export const BannersTab: React.FC = () => {
                               onChange={(e) => setFormData({ ...formData, button_target_value: e.target.value })}
                               className="form-input"
                               style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem', padding: '8px 12px' }}
-                            />
+                             data-admin-ui="field"/>
                           )}
                         </div>
                       </div>
@@ -1332,7 +1350,7 @@ export const BannersTab: React.FC = () => {
               </div>
 
               {/* Destination & Order Config */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }} data-admin-ui="grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                     Destino do Clique Geral no Banner
@@ -1349,7 +1367,7 @@ export const BannersTab: React.FC = () => {
                     }}
                     className="form-input"
                     style={{ width: '100%', borderRadius: 10, fontSize: '0.85rem', padding: '10px 12px' }}
-                  >
+                   data-admin-ui="field">
                     <option value="category">Categoria do Cardápio</option>
                     <option value="product">Produto Específico</option>
                     <option value="external">Link Externo / URL</option>
@@ -1366,7 +1384,7 @@ export const BannersTab: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, link_value: e.target.value })}
                       className="form-input"
                       style={{ width: '100%', borderRadius: 10, fontSize: '0.85rem', padding: '10px 12px' }}
-                    >
+                     data-admin-ui="field">
                       <option value="combos">Combos e Centos (Destaque)</option>
                       {categories.map(c => (
                         <option key={c.id} value={c.id}>
@@ -1380,7 +1398,7 @@ export const BannersTab: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, link_value: e.target.value })}
                       className="form-input"
                       style={{ width: '100%', borderRadius: 10, fontSize: '0.85rem', padding: '10px 12px' }}
-                    >
+                     data-admin-ui="field">
                       {products.map(p => (
                         <option key={p.id} value={p.id}>
                           {p.name}
@@ -1395,7 +1413,7 @@ export const BannersTab: React.FC = () => {
                       onChange={(e) => setFormData({ ...formData, link_value: e.target.value })}
                       className="form-input"
                       style={{ width: '100%', borderRadius: 10, fontSize: '0.85rem', padding: '10px 12px' }}
-                    />
+                     data-admin-ui="field"/>
                   )}
                 </div>
 
@@ -1411,7 +1429,7 @@ export const BannersTab: React.FC = () => {
                     onChange={(e) => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 1 })}
                     className="form-input"
                     style={{ width: '100%', borderRadius: 10, fontSize: '0.85rem', padding: '10px 12px' }}
-                  />
+                   data-admin-ui="field"/>
                 </div>
               </div>
 
@@ -1440,7 +1458,7 @@ export const BannersTab: React.FC = () => {
                 flexDirection: 'column',
                 gap: 12
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }} data-admin-ui="toolbar">
                   <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#f97316', display: 'flex', alignItems: 'center', gap: 6, letterSpacing: '0.05em' }}>
                     <Eye size={14} /> PRÉVIA AO VIVO NA LOJA
                   </span>
@@ -1462,7 +1480,7 @@ export const BannersTab: React.FC = () => {
                         alignItems: 'center',
                         gap: 4
                       }}
-                    >
+                     data-admin-ui="button">
                       <Monitor size={12} /> PC
                     </button>
                     <button
@@ -1481,7 +1499,7 @@ export const BannersTab: React.FC = () => {
                         alignItems: 'center',
                         gap: 4
                       }}
-                    >
+                     data-admin-ui="button">
                       <Smartphone size={12} /> Mobile
                     </button>
                   </div>
@@ -1501,7 +1519,7 @@ export const BannersTab: React.FC = () => {
                     gridTemplateColumns: previewTab === 'desktop' ? '1fr 180px' : '1fr',
                     gap: 12,
                     alignItems: 'center'
-                  }}>
+                  }} data-admin-ui="grid">
                     <div>
                       <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f97316', display: 'flex', alignItems: 'center', gap: 4 }}>
                         <Sparkles size={11} /> DESTAQUE DA LOJA
@@ -1546,7 +1564,7 @@ export const BannersTab: React.FC = () => {
                       gap: 12,
                       boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
                       border: '1.5px solid #fed7aa'
-                    }}>
+                    }} data-admin-ui="panel">
                       <span style={{
                         width: 36,
                         height: 36,
@@ -1595,7 +1613,7 @@ export const BannersTab: React.FC = () => {
               </div>
 
               {/* Modal Footer */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }} data-admin-ui="actions">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -1610,7 +1628,7 @@ export const BannersTab: React.FC = () => {
                     fontSize: '0.88rem',
                     fontWeight: 600
                   }}
-                >
+                 data-admin-ui="button">
                   Cancelar
                 </button>
 
@@ -1627,7 +1645,7 @@ export const BannersTab: React.FC = () => {
                     alignItems: 'center',
                     gap: 6
                   }}
-                >
+                 data-admin-ui="button">
                   {uploadingTarget ? (
                     <>
                       <RefreshCw size={15} className="animate-spin" />
@@ -1643,5 +1661,6 @@ export const BannersTab: React.FC = () => {
         </div>
       )}
     </div>
+    </fieldset>
   );
 };

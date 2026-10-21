@@ -1,0 +1,248 @@
+/* AlfaDelivery PRO 0.6.6 — presentation only; all rules stay inside the admin shell. */
+.admin-shell {
+  --admin-ink:#253044; --admin-muted:#67758a; --admin-line:#e3e7ee;
+  --admin-accent:#a52b3b; --admin-tint:#fbf0f1; --admin-canvas:#f5f6f9;
+  font-family:var(--font-sans); color:var(--admin-ink); background:var(--admin-canvas)!important;
+  height:100dvh; min-height:100dvh!important; overflow:hidden;
+}
+.admin-shell>.admin-layout-container { flex:1; min-height:0; overflow:visible; }
+.admin-shell .admin-topbar { flex-shrink:0; min-height:76px; padding:14px 30px!important; gap:18px; background:#fff!important; }
+.admin-shell .admin-location { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.admin-shell .admin-location small { color:var(--admin-muted); font-size:10px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+.admin-shell .admin-location strong { font-size:15px; font-weight:800; letter-spacing:-.025em; color:var(--admin-ink); }
+.admin-shell .admin-topbar button { min-height:38px; }
+.admin-shell .admin-topbar>div:last-child>button:last-child { background:#fff!important; border-color:#dce2eb!important; border-radius:10px!important; padding:10px 14px!important; color:#35445b!important; }
+.admin-shell .admin-sidebar { width:264px; min-width:264px; height:100%; top:0; position:relative; background:#202c40; border-right:0; }
+.admin-shell .admin-sidebar.collapsed { width:0; min-width:0; }
+.admin-shell .admin-brand { min-width:264px; padding:25px 20px 22px; border-bottom:1px solid #ffffff12; margin-bottom:12px; }
+.admin-shell .admin-brand img { background:white; border:3px solid #ffffff26; width:42px; height:42px; }
+.admin-shell .admin-brand strong { color:#fff; font-size:13px; }
+.admin-shell .admin-brand small { color:#b5c1d2; font-size:11px; }
+.admin-shell .admin-brand>button { background:#ffffff10; color:#c1cbda; padding:7px; }
+.admin-shell .admin-sidebar nav { min-width:264px; padding:0 14px 14px; scrollbar-width:thin; scrollbar-color:#59677d transparent; }
+.admin-shell .admin-menu-group { margin-bottom:17px; }
+.admin-shell .admin-menu-group>span { color:#a6b5cb; font-size:9px; letter-spacing:.11em; padding:13px 13px 8px; }
+.admin-shell .admin-menu-group>button { min-height:44px; margin:4px 0; border-radius:10px; color:#d4ddea; font-weight:500; font-size:12px; gap:12px; padding:11px 13px; }
+.admin-shell .admin-menu-group>button svg { width:18px; flex-shrink:0; opacity:.85; }
+.admin-shell .admin-menu-group>button:hover { background:#ffffff0c; color:white; }
+.admin-shell .admin-menu-group>button.active { color:#fff; background:#a52b3b; font-weight:750; box-shadow:0 4px 12px #101b302b; }
+.admin-shell .admin-menu-group>button.active svg { opacity:1; }
+.admin-shell .admin-menu-group b { background:#ffffff; color:#942739; border-radius:6px; padding:3px 7px; }
+.admin-shell .admin-sidebar-footer { min-width:264px; border-color:#ffffff14; padding:12px 23px; background:#1b2638; }
+.admin-shell .admin-sidebar-footer>button { color:#c9d4e3; min-height:38px; font-size:11px; }
+.admin-shell .admin-sidebar-footer .admin-logout { color:#f3b5bf; }
+.admin-shell .admin-sound b { background:#2a4b43; color:#c1ebd3; }
+.admin-shell .admin-content { min-height:0; padding:0!important; background:var(--admin-canvas); overflow:auto; }
+.admin-shell .admin-content:focus { outline:none; }
+.admin-shell .admin-content>.confirmed-save-fields>div,
+.admin-shell .admin-content>div:not(.product-editor-backdrop) { padding:28px!important; }
+.admin-shell .admin-content :is(h2,h3,h4) { letter-spacing:-.025em; line-height:1.3; }
+.admin-shell .admin-content h2 { font-size:24px!important; font-weight:800!important; }
+.admin-shell .admin-content p { line-height:1.65; }
+.admin-shell .admin-content .card { border:1px solid var(--admin-line); border-radius:16px; box-shadow:0 3px 12px #25304404; }
+.admin-shell .admin-content .btn { border-radius:10px; font-weight:700; font-size:13px; min-height:40px; }
+.admin-shell .admin-content .btn-primary { background:var(--admin-accent); border-color:var(--admin-accent); box-shadow:0 3px 9px #a52b3b16; color:#fff; }
+.admin-shell .admin-content .btn-primary:hover { background:#8f2332; }
+.admin-shell .admin-content .form-input { min-height:42px; border:1px solid #dbe1ea!important; border-radius:10px!important; background:#fff; padding:10px 12px; font-size:13px; color:#28364b; box-shadow:0 1px 2px #25304403; }
+.admin-shell .admin-content textarea.form-input { min-height:92px; }
+.admin-shell .admin-content :is(input,select,textarea):focus-visible { border-color:#a52b3b!important; box-shadow:0 0 0 3px #a52b3b14; }
+.admin-shell :is(button,a,input,select,textarea):focus-visible { outline:3px solid #b86c1d!important; outline-offset:3px; }
+.admin-shell .admin-content table { font-variant-numeric:tabular-nums; }
+.admin-shell .admin-content table th { color:#64748b!important; background:#f7f9fc!important; font-size:11px!important; letter-spacing:.035em; font-weight:750; padding:14px 16px!important; }
+.admin-shell .admin-content table td { border-color:#edf0f5!important; padding:14px 16px!important; }
+.admin-shell .admin-content table tbody tr:hover { background:#fafbfd; }
+.admin-shell .admin-content :is(input,select,textarea,button) { transition:background-color .15s,border-color .15s,box-shadow .15s; }
+.admin-shell .admin-content :is(button):disabled { opacity:.58; }
+.admin-shell .sales-heading { background:#fff; border-color:var(--admin-line); border-radius:16px; padding:24px; box-shadow:none; }
+.admin-shell .sales-eyebrow { color:var(--admin-accent); font-size:10px; }
+.admin-shell .sales-heading-icon { background:var(--admin-tint); color:var(--admin-accent); }
+.admin-shell :is(.sales-panel,.sales-kpi) { border-color:var(--admin-line); border-radius:16px; box-shadow:0 3px 12px #25304404; }
+.admin-shell .sales-primary-button { background:#a52b3b; box-shadow:0 3px 9px #a52b3b16; }
+.admin-shell .sales-add-button { background:#26364d; }
+.admin-shell .sales-panel-title h3 svg { color:var(--admin-accent); }
+.admin-shell .sales-total-line { background:#f5f7fa; }
+.admin-shell .sales-heading p { color:var(--admin-muted); }
+.admin-shell .dashboard-header { padding:4px 0 12px; gap:20px!important; }
+.admin-shell .dashboard-eyebrow { display:block; font-size:10px; letter-spacing:.12em; font-weight:800; color:#a52b3b; margin-bottom:8px; }
+.admin-shell .dashboard-header h2 { font-size:30px!important; margin-bottom:6px; }
+.admin-shell .dashboard-header p { max-width:550px; }
+.admin-shell .dashboard-periods { background:#e9edf3!important; border:1px solid #e1e6ee; border-radius:12px!important; padding:5px!important; flex-wrap:wrap; }
+.admin-shell .dashboard-periods button { min-height:36px; border-radius:8px; padding:8px 13px!important; }
+.admin-shell .dashboard-periods button[aria-pressed=true] { color:#902536!important; }
+.admin-shell .dashboard-metrics { grid-template-columns:repeat(4,minmax(0,1fr))!important; gap:16px!important; }
+.admin-shell .dashboard-metrics>.card { flex-direction:column; align-items:flex-start!important; justify-content:space-between; gap:18px!important; padding:23px!important; min-height:192px; position:relative; }
+.admin-shell .dashboard-metrics>.card>div:first-child { width:42px!important; height:42px!important; border-radius:12px!important; }
+.admin-shell .dashboard-metrics h3 { margin:6px 0!important; font-size:27px!important; font-variant-numeric:tabular-nums; }
+.admin-shell .dashboard-status { background:#fff!important; border-radius:14px; }
+.admin-shell .dashboard-recent-order { width:100%; text-align:left; font:inherit; }
+.admin-shell .dashboard-recent-order:hover { background:#f7f9fc!important; border-color:#cdd6e4!important; }
+.admin-shell .admin-skip-link { position:fixed; left:18px; top:-100px; z-index:2000; background:#fff; color:#8f2332; padding:12px 18px; border-radius:8px; font-size:13px; font-weight:700; box-shadow:0 4px 20px #0003; }
+.admin-shell .admin-skip-link:focus { top:12px; }
+@media(min-width:1600px) { .admin-shell .admin-content>div,.admin-shell .admin-content>.confirmed-save-fields>div { max-width:1600px; margin-inline:auto; } }
+@media(max-width:1200px) { .admin-shell .dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr))!important; } }
+@media(max-width:1024px) {
+  .admin-shell .admin-sidebar { top:0; height:100dvh; width:264px; min-width:264px; }
+  .admin-shell .admin-sidebar.collapsed { width:264px; min-width:264px; }
+  .admin-shell .admin-backdrop { z-index:60; background:#15203688; }
+  .admin-shell .admin-topbar { padding:12px 20px!important; }
+  .admin-shell .admin-content>.confirmed-save-fields>div,.admin-shell .admin-content>div:not(.product-editor-backdrop) { padding:22px!important; }
+}
+@media(max-width:600px) {
+  .admin-shell .admin-topbar { padding:12px 16px!important; gap:12px; }
+  .admin-shell .admin-location strong { font-size:14px; }
+  .admin-shell .admin-location small { font-size:9px; }
+  .admin-shell .admin-topbar>div:last-child { justify-content:flex-start; flex-wrap:wrap; gap:8px!important; }
+  .admin-shell .admin-content>.confirmed-save-fields>div,.admin-shell .admin-content>div:not(.product-editor-backdrop) { padding:16px!important; }
+  .admin-shell .dashboard-header { align-items:flex-start!important; }
+  .admin-shell .dashboard-header h2 { font-size:26px!important; }
+  .admin-shell .dashboard-periods { width:100%; gap:4px!important; }
+  .admin-shell .dashboard-periods button { flex:1; padding:8px!important; font-size:12px!important; }
+  .admin-shell .dashboard-metrics { grid-template-columns:repeat(2,minmax(0,1fr))!important; gap:10px!important; }
+  .admin-shell .dashboard-metrics>.card { padding:15px!important; min-height:180px; gap:12px!important; }
+  .admin-shell .dashboard-metrics h3 { font-size:21px!important; overflow-wrap:anywhere; }
+  .admin-shell .dashboard-metrics small { line-height:1.5; display:block; }
+  .admin-shell .admin-content .form-input { font-size:16px!important; }
+  .admin-shell .admin-content table { min-width:580px; }
+  .admin-shell .sales-heading { padding:18px; }
+  .admin-shell .sales-kpis { grid-template-columns:1fr; }
+}
+@media(max-width:360px) { .admin-shell .dashboard-metrics { grid-template-columns:minmax(0,1fr)!important; } }
+@media(prefers-reduced-motion:reduce) { .admin-shell * { transition:none!important; } }
+@media print { .admin-shell .admin-skip-link { display:none!important; } }
+@media print {
+  .admin-shell,.admin-shell>.admin-layout-container,.admin-shell .admin-content { height:auto; min-height:0!important; max-height:none; overflow:visible; }
+}
+
+/* Revisão 2: componentes visuais comuns a todas as áreas administrativas. */
+.admin-shell { --admin-radius:16px; --admin-soft:#f7f9fc; --admin-elevation:0 4px 18px #25304405; }
+.admin-shell [data-admin-ui~=panel] { border-color:var(--admin-line)!important; border-radius:var(--admin-radius)!important; box-shadow:var(--admin-elevation)!important; }
+.admin-shell [data-admin-ui~=panel]:has(>h3) > h3 { padding-bottom:8px; }
+.admin-shell [data-admin-ui~=grid] { min-width:0; }
+.admin-shell [data-admin-ui~=grid] > * { min-width:0; }
+.admin-shell [data-admin-ui~=field] { border:1px solid #d9e1ec!important; border-radius:10px!important; min-height:42px; max-width:100%; padding:10px 12px!important; font:inherit; font-size:13px!important; color:#29384e!important; background:#fff!important; box-sizing:border-box; }
+.admin-shell textarea[data-admin-ui~=field] { min-height:88px; resize:vertical; line-height:1.6; }
+.admin-shell [data-admin-ui~=field]:disabled { background:#f2f4f7!important; color:#7b8798!important; cursor:not-allowed; }
+.admin-shell input:is([type=checkbox],[type=radio]) { accent-color:var(--admin-accent); width:17px; height:17px; flex-shrink:0; }
+.admin-shell [data-admin-ui~=button] { border-radius:9px!important; min-height:36px; line-height:1.35; font-weight:650; }
+.admin-shell [data-admin-ui~=button][aria-label]:not(:has(span)) { min-width:34px; display:inline-flex; justify-content:center; align-items:center; }
+.admin-shell button[aria-pressed=true]:not(.admin-sound) { box-shadow:0 0 0 1px #a52b3b12; }
+.admin-shell [data-admin-ui~=toolbar] { row-gap:12px!important; }
+.admin-shell [data-admin-ui~=toolbar] > [data-admin-ui~=field] { flex:1 1 160px; min-width:0; }
+.admin-shell [data-admin-ui~=table-scroll] { overflow-x:auto!important; overscroll-behavior-x:contain; scrollbar-width:thin; scrollbar-color:#bdc8d8 transparent; border-radius:14px; }
+.admin-shell [data-admin-ui~=table-scroll]:focus-visible { outline:3px solid #b86c1d; outline-offset:3px; }
+.admin-shell table { width:100%; border-collapse:separate!important; border-spacing:0; }
+.admin-shell table td { font-size:12px; line-height:1.6; }
+.admin-shell table td[colspan] { text-align:center; padding:38px 20px!important; color:#748297!important; background:#fbfcfe; }
+.admin-shell table td:first-child strong { font-weight:750; }
+.admin-shell table tr:last-child td { border-bottom:0!important; }
+.admin-shell table td img { object-fit:cover; border-radius:10px!important; background:#f4f6f9; }
+.admin-shell table td button { margin-block:2px; }
+.admin-shell table tbody tr { transition:background-color .15s; }
+.admin-shell [data-admin-ui~=overlay] { z-index:1200!important; background:#13203799!important; backdrop-filter:blur(5px)!important; padding:20px!important; overflow-y:auto; }
+.admin-shell [data-admin-ui~=dialog] { max-height:calc(100dvh - 40px)!important; overflow-y:auto!important; overscroll-behavior:contain; border-radius:20px!important; border:1px solid #ffffff88; background:#fff; box-shadow:0 24px 90px #0c15244d!important; scrollbar-width:thin; }
+.admin-shell [data-admin-ui~=dialog-header] { position:sticky; top:0; z-index:3; background:#fff!important; border-color:#e6ebf2!important; padding:20px 24px!important; }
+.admin-shell [data-admin-ui~=dialog] h3 { font-size:19px!important; color:#253044!important; }
+.admin-shell [data-admin-ui~=dialog] label { line-height:1.5; }
+.admin-shell [data-admin-ui~=actions] { position:sticky; bottom:0; z-index:2; padding:16px 20px!important; margin-inline:0!important; background:#fff; border-color:#e6ebf2!important; gap:10px; }
+.admin-shell [data-admin-ui~=form] { min-width:0; }
+.admin-shell .save-notice { z-index:2500; border-radius:12px; box-shadow:0 12px 40px #15213a1a; }
+.admin-shell .confirmed-save-error { position:relative; z-index:2; line-height:1.6; }
+.admin-shell .product-editor-backdrop { z-index:1300; }
+.admin-shell .product-editor { border:1px solid #e3e8f0; border-radius:20px; box-shadow:0 24px 90px #0c15244d; }
+.admin-shell .product-editor-header { background:#fff; border-color:var(--admin-line); }
+.admin-shell .product-editor-tabs { background:#fafbfd; border-color:var(--admin-line); gap:6px; }
+.admin-shell .product-editor-tabs button { border-radius:9px; min-height:40px; }
+.admin-shell .product-editor-tabs button.active { background:#f9e9ed; color:#942437; }
+.admin-shell .editor-preview { background:#f4f6fa; border-color:var(--admin-line); }
+.admin-shell .editor-group { border-color:var(--admin-line); border-radius:13px; }
+.admin-shell .editor-group-header { background:#f7f9fc; border-color:var(--admin-line); }
+.admin-shell .product-editor-footer { background:#fff; border-color:var(--admin-line); }
+.admin-shell [data-admin-page=orders] > div { min-height:0!important; gap:18px!important; }
+.admin-shell .kanban-board-container { gap:14px!important; overflow-x:auto; padding:2px 2px 18px; scroll-snap-type:x proximity; scrollbar-width:thin; }
+.admin-shell .kanban-column { min-width:230px!important; flex:1 0 230px!important; border-radius:15px!important; background:#f3f5f9!important; height:min(730px,calc(100dvh - 245px))!important; min-height:330px; scroll-snap-align:start; box-shadow:none!important; }
+.admin-shell .kanban-column>div:first-child { padding:15px 14px!important; }
+.admin-shell .kanban-column>div:first-child span { letter-spacing:.015em; }
+.admin-shell .admin-order-card { padding:15px!important; border-radius:13px!important; gap:11px!important; box-shadow:0 3px 10px #25304408!important; }
+.admin-shell .admin-order-card h3 { font-size:15px!important; }
+.admin-shell .admin-order-card button { min-height:36px; border-radius:8px!important; }
+.admin-shell .admin-order-card :is(p,small) { line-height:1.5; }
+.admin-shell .admin-product-summary { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.admin-shell .admin-product-summary>div { background:#fff; border:1px solid var(--admin-line); border-radius:14px; padding:17px 19px; }
+.admin-shell .admin-product-summary span { display:block; color:#697a90; font-size:11px; font-weight:650; }
+.admin-shell .admin-product-summary strong { display:block; margin-top:8px; color:#253044; font-size:25px; line-height:1.2; }
+.admin-shell .admin-product-summary .attention strong { color:#b45309; }
+.admin-shell .admin-product-list td { padding-block:16px!important; }
+.admin-shell .admin-product-list td:nth-child(2) { min-width:190px; }
+.admin-shell .admin-product-list td:last-child { min-width:158px; }
+.admin-shell .admin-product-list td:first-child img { width:50px!important; height:50px!important; border:1px solid #e8ecf2; }
+.admin-shell .admin-settings-tabs { background:#fff!important; padding:7px!important; border-radius:14px!important; gap:6px!important; overflow-x:auto; flex-shrink:0; }
+.admin-shell .admin-settings-tabs button { flex-shrink:0; min-height:42px; }
+.admin-shell .admin-settings-tabs button[aria-pressed=true] { background:#a52b3b!important; color:#fff!important; }
+.admin-shell [data-admin-page=expenses] section { border-color:var(--admin-line)!important; border-radius:16px!important; box-shadow:var(--admin-elevation); }
+.admin-shell [data-admin-page=reports] section { border-radius:16px!important; }
+.admin-shell .sales-ledger-item { border:1px solid var(--admin-line); border-radius:13px; padding:16px; margin-bottom:12px; }
+.admin-shell .sales-status { font-weight:750; border-radius:7px; }
+.admin-shell .sales-message { font-size:13px; line-height:1.6; }
+@media(max-width:1100px) { .admin-shell .admin-product-summary { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:680px) {
+ .admin-shell [data-admin-ui~=grid-fixed] { grid-template-columns:minmax(0,1fr)!important; }
+ .admin-shell [data-admin-ui~=toolbar] { gap:10px!important; }
+ .admin-shell [data-admin-ui~=toolbar]>[data-admin-ui~=field] { flex-basis:100%; }
+ .admin-shell .kanban-column { min-width:275px!important; flex-basis:275px!important; height:560px!important; }
+ .admin-shell [data-admin-ui~=overlay] { padding:10px!important; align-items:center!important; }
+ .admin-shell [data-admin-ui~=dialog] { max-width:100%!important; max-height:calc(100dvh - 20px)!important; border-radius:16px!important; }
+ .admin-shell [data-admin-ui~=dialog-header] { padding:17px 18px!important; }
+ .admin-shell [data-admin-ui~=dialog] form { padding-inline:16px!important; }
+ .admin-shell [data-admin-ui~=field] { font-size:16px!important; min-height:44px; }
+ .admin-shell [data-admin-ui~=button] { min-height:40px; }
+ .admin-shell .admin-product-summary { gap:10px; }
+ .admin-shell .admin-product-summary>div { padding:14px; }
+ .admin-shell .admin-product-summary strong { font-size:23px; }
+ .admin-shell .editor-grid.three { grid-template-columns:1fr!important; }
+ .admin-shell .sales-payment-form { grid-template-columns:1fr; }
+}
+@media(max-width:400px) {
+ .admin-shell .admin-product-summary { grid-template-columns:minmax(0,1fr); }
+ .admin-shell [data-admin-ui~=toolbar]>.btn { width:100%; justify-content:center; }
+ .admin-shell .editor-options-head,.admin-shell .editor-option-row { grid-template-columns:minmax(0,1fr) 68px 28px 24px; }
+}
+@media(prefers-reduced-motion:reduce) { .admin-shell [data-admin-ui] { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+@media print {
+ .admin-shell [data-admin-ui~=dialog-header],.admin-shell [data-admin-ui~=actions] { position:static; }
+ .admin-shell table { border-collapse:collapse!important; }
+}
+.admin-shell .admin-board-help { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0; color:#748297; font-size:11px; }
+.admin-shell .admin-board-help strong { color:#35445b; font-weight:750; }
+.admin-shell .kanban-board-container:focus-visible { outline:3px solid #b86c1d; outline-offset:2px; border-radius:12px; }
+.admin-shell [data-admin-ui~=field] { min-width:0; }
+.admin-shell [data-admin-ui~=dialog-header]>div:first-child { min-width:0; flex:1; }
+.admin-shell [data-admin-ui~=dialog-header]>div:first-child>div:last-child { min-width:0; }
+.admin-shell [data-admin-ui~=dialog-header] :is(h3,p,span) { overflow-wrap:anywhere; }
+.admin-shell [data-admin-ui~=actions] { flex-wrap:wrap; }
+.admin-shell [data-admin-ui~=actions]>button { flex:1 1 140px; justify-content:center; }
+.admin-shell label:has(input:is([type=checkbox],[type=radio])) { min-height:44px; cursor:pointer; }
+.admin-shell label input:is([type=checkbox],[type=radio]) { width:20px!important; height:20px!important; min-width:20px!important; min-height:20px!important; margin:2px 0!important; }
+.admin-shell .admin-order-actions { display:grid!important; grid-template-columns:minmax(0,1fr) 38px 38px; grid-auto-flow:row dense; gap:7px!important; padding-top:12px!important; }
+.admin-shell .admin-order-actions>button { min-width:0!important; width:100%; justify-content:center; }
+.admin-shell .admin-order-actions>[data-admin-action=advance] { grid-column:1/-1; min-height:40px; }
+
+/* Espaço reservado aos ícones de pesquisa. */
+.admin-shell [data-admin-field-icon] { padding-left:38px!important; padding-right:34px!important; }
+.admin-shell div:has(>[data-admin-field-icon])>svg { top:50%!important; transform:translateY(-50%); pointer-events:none; }
+.admin-shell [data-admin-ui~="button"][type="submit"] { background:#9f1745!important; color:#fff!important; }
+
+/* 0.7.1 — pesquisa e acabamento da navegação administrativa */
+.admin-shell .admin-nav-search { display:flex; align-items:center; gap:8px; margin:0 14px 10px; padding:0 10px; min-height:42px; border:1px solid #ffffff26; border-radius:12px; background:#ffffff0d; color:#cbd5e1; }
+.admin-shell .admin-nav-search:focus-within { border-color:#f0b4bc; box-shadow:0 0 0 3px #ffffff14; }
+.admin-shell .admin-nav-search input { width:100%; min-width:0; border:0; outline:0; color:white; background:transparent; font:inherit; font-size:12px; }
+.admin-shell .admin-nav-search input::placeholder { color:#aab8cb; }
+.admin-shell .admin-nav-search input::-webkit-search-cancel-button { display:none; }
+.admin-shell .admin-nav-search button { display:grid; place-items:center; border:0; background:transparent; color:#d9e3ee; cursor:pointer; padding:4px; }
+.admin-shell .admin-search-count { margin:0 12px 10px; color:#b7c5d7; font-size:11px; }
+.admin-shell .admin-search-empty { display:grid; justify-items:center; gap:8px; padding:22px 10px; color:#cbd5e1; text-align:center; font-size:12px; }
+.admin-shell .admin-search-empty p { margin:0; }
+.admin-shell .admin-search-empty button { color:white; background:#a52b3b; border:0; border-radius:8px; padding:8px 12px; cursor:pointer; }
+.admin-shell .admin-menu-group>button { transition:background-color .16s ease,transform .16s ease,box-shadow .16s ease; }
+.admin-shell .admin-menu-group>button:hover { transform:translateX(2px); background:#ffffff17; }
+.admin-shell .admin-menu-group>button.active { box-shadow:inset 3px 0 #f7c5cd,0 5px 16px #0c152b30; }
+@media(prefers-reduced-motion:reduce) { .admin-shell .admin-menu-group>button { transition:none; } .admin-shell .admin-menu-group>button:hover { transform:none; } }

@@ -267,6 +267,30 @@ export function generatePalette(
   };
 }
 
+function luminance(hex: string): number {
+  const rgb = hexToRgb(hex);
+  const channels = [rgb.r, rgb.g, rgb.b].map(v => { const c = v / 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; });
+  return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+}
+export function contrastRatio(a: string, b: string): number {
+  const x = luminance(a), y = luminance(b);
+  return (Math.max(x, y) + .05) / (Math.min(x, y) + .05);
+}
+export function contrastText(hex: string): string {
+  return contrastRatio('#000000', hex) >= contrastRatio('#ffffff', hex) ? '#000000' : '#ffffff';
+}
+// Preserve the hue where possible, darkening or lightening only enough to read.
+export function readableColor(color: string, background: string, minimum = 4.5): string {
+  if (contrastRatio(color, background) >= minimum) return color;
+  const original = hexToRgb(color), target = hexToRgb(contrastText(background));
+  for (let step = 1; step <= 100; step++) {
+    const t = step / 100;
+    const candidate = rgbToHex(original.r + (target.r - original.r) * t, original.g + (target.g - original.g) * t, original.b + (target.b - original.b) * t);
+    if (contrastRatio(candidate, background) >= minimum) return candidate;
+  }
+  return contrastText(background);
+}
+
 // Aplica paleta no documento DOM com todas as variáveis CSS correspondentes
 export function applyTheme(input: string | {
   primary?: string;
@@ -332,11 +356,20 @@ export function applyTheme(input: string | {
   // 3. Fundo e superfícies
   root.style.setProperty('--bg-page', palette.bgLight);
   root.style.setProperty('--bg-card', '#ffffff');
+  root.style.setProperty('--theme-surface-soft', palette.primarySubtle);
+  root.style.setProperty('--color-on-primary', contrastText(palette.primary));
+  root.style.setProperty('--color-on-primary-hover', contrastText(palette.primaryDark));
+  root.style.setProperty('--color-on-dark', contrastText(palette.textDark));
   root.style.setProperty('--border-subtle', palette.borderSubtle);
 
   // 4. Tipografia e contrastes
   root.style.setProperty('--text-main', palette.textDark);
-  root.style.setProperty('--text-muted', palette.textMuted);
+  root.style.setProperty('--text-muted', readableColor(palette.textDark, '#ffffff', 4.5));
+  root.style.setProperty('--surface-text', readableColor(palette.textDark, '#ffffff'));
+  root.style.setProperty('--primary-ink', readableColor(palette.primary, '#ffffff'));
+  root.style.setProperty('--page-primary-ink', readableColor(palette.primary, palette.bgLight));
+  root.style.setProperty('--control-border', readableColor(palette.primary, '#ffffff', 3));
+  root.style.setProperty('--page-text', readableColor(palette.textDark, palette.bgLight));
 }
 
 // Manter compatibilidade com código existente

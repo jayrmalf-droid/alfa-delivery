@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';
+const code=ts.transpileModule(fs.readFileSync(new URL('../src/domain/productAvailability.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
+const {productAvailability:status}=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+test('pausa e falta de estoque têm motivos distintos sem mudar o produto',()=>{const p={available:false,has_stock_control:true,stock_quantity:0};const before=structuredClone(p);assert.deepEqual(status(p),{canOrder:false,reason:'Produto pausado'});assert.equal(status({...p,available:true}).reason,'Sem estoque no momento');assert.deepEqual(p,before);});
+test('estoque só restringe pedido quando controlado',()=>{assert.equal(status({available:true,has_stock_control:false,stock_quantity:0}).canOrder,true);assert.equal(status({available:true,has_stock_control:true,stock_quantity:1}).canOrder,true);assert.equal(status({available:true,has_stock_control:true,stock_quantity:-1}).canOrder,false);});

@@ -35,6 +35,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     >
       <button
         onClick={() => onSelectTab('home')}
+        aria-current={currentTab === 'home' ? 'page' : undefined}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -55,6 +56,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
       <button
         onClick={() => onSelectTab('menu')}
+        aria-current={currentTab === 'menu' ? 'page' : undefined}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -75,6 +77,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
       <button
         onClick={() => onSelectTab('orders')}
+        aria-current={currentTab === 'orders' ? 'page' : undefined}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -95,6 +98,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
       <button
         onClick={() => onSelectTab('cart')}
+        aria-current={currentTab === 'cart' ? 'page' : undefined}
         style={{
           display: 'flex',
           flexDirection: 'column',

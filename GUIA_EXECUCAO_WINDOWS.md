@@ -1,3 +1,5 @@
+> Versão 0.8.23 PRÉVIA: siga primeiro ATUALIZACAO_0.8.23.md. Documentos antigos são histórico.
+
 # Alfa Salgados Delivery — Guia de Execução Local no Windows
 
 Este guia descreve como instalar, configurar e operar a aplicação localmente no ambiente Windows.
@@ -51,7 +53,7 @@ Caso seja a primeira instalação ou queira redefinir o acesso ao painel adminis
 
 | Comando | Descrição |
 |---|---|
-| `npm test` | Executa a suíte completa com os 26 testes de aceitação automatizados. |
+| `npm test` | Executa a suíte completa com os 74 testes automatizados. |
 | `npm run dev` | Inicia o servidor de desenvolvimento do Vite com Hot Reload (porta 5173). |
 | `npm run server` | Inicia a API Node.js local com reload automático ao alterar arquivos. |
 | `npm run build` | Valida tipagem TypeScript e gera o pacote otimizado de produção em `dist/`. |

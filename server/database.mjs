@@ -3,6 +3,16 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import pg from 'pg';
 
+function safeParseJson(val, fallback = null) {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === 'object') return val;
+  try {
+    return JSON.parse(val);
+  } catch {
+    return fallback;
+  }
+}
+
 export class DatabaseAdapter {
   constructor(options = {}) {
     this.type = options.type || (process.env.DATABASE_TYPE || (process.env.DATABASE_URL?.startsWith('postgres') ? 'postgres' : 'sqlite'));
@@ -34,8 +44,9 @@ export class DatabaseAdapter {
 
         for (const currentUrl of candidateUrls) {
           const isRenderInternal = /dpg-[a-z0-9]+(-a)?(:|\/|\.)/i.test(currentUrl) && !/render\.com|sslmode=require/i.test(currentUrl);
+          const cleanUrl = currentUrl.replace(/[?&]sslmode=[^&]+/i, '').replace(/\?$/, '');
           const poolConfig = {
-            connectionString: currentUrl,
+            connectionString: cleanUrl,
             max: 10,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 10000
@@ -144,32 +155,72 @@ export class DatabaseAdapter {
     }
   }
 
+  async ensureRecord(key, value) {
+    // Safe migration: create newly introduced records only when absent; never overwrite existing data.
+    if (this.type === 'postgres') {
+      await this.pgPool.query(
+        'INSERT INTO records(key, value, version) VALUES ($1, $2, 1) ON CONFLICT (key) DO NOTHING',
+        [key, JSON.stringify(value)]
+      );
+      return;
+    }
+    this.sqliteDb.prepare('INSERT OR IGNORE INTO records(key,value,version) VALUES (?,?,1)').run(key, JSON.stringify(value));
+  }
+
   async getRecord(key) {
     if (this.type === 'postgres') {
       const res = await this.pgPool.query('SELECT value FROM records WHERE key = $1', [key]);
-      return res.rows[0] ? JSON.parse(res.rows[0].value) : [];
+      return res.rows[0] ? safeParseJson(res.rows[0].value, []) : [];
     }
     const row = this.sqliteDb.prepare('SELECT value FROM records WHERE key=?').get(key);
-    return row ? JSON.parse(row.value) : [];
+    return row ? safeParseJson(row.value, []) : [];
   }
 
   async getRecordWithVersion(key) {
     if (this.type === 'postgres') {
       const res = await this.pgPool.query('SELECT value, version FROM records WHERE key = $1', [key]);
       if (!res.rows[0]) return null;
-      return { value: JSON.parse(res.rows[0].value), version: res.rows[0].version };
+      return { value: safeParseJson(res.rows[0].value), version: res.rows[0].version };
     }
     const row = this.sqliteDb.prepare('SELECT value, version FROM records WHERE key=?').get(key);
     if (!row) return null;
-    return { value: JSON.parse(row.value), version: row.version };
+    return { value: safeParseJson(row.value), version: row.version };
   }
 
-  async putRecord(key, value) {
+  async getRecordForUpdate(key) {
     if (this.type === 'postgres') {
+      const res = await this.pgPool.query('SELECT value, version FROM records WHERE key = $1 FOR UPDATE', [key]);
+      if (!res.rows[0]) return null;
+      return { value: safeParseJson(res.rows[0].value), version: res.rows[0].version };
+    }
+    const row = this.sqliteDb.prepare('SELECT value, version FROM records WHERE key=?').get(key);
+    if (!row) return null;
+    return { value: safeParseJson(row.value), version: row.version };
+  }
+
+  async putRecord(key, value, expectedVersion) {
+    if (this.type === 'postgres') {
+      if (typeof expectedVersion === 'number') {
+        const res = await this.pgPool.query(
+          'UPDATE records SET value = $1, version = version + 1 WHERE key = $2 AND version = $3',
+          [JSON.stringify(value), key, expectedVersion]
+        );
+        if (res.rowCount === 0) {
+          throw new Error('Conflito de concorrência detectado ao atualizar o registro.');
+        }
+        return;
+      }
       await this.pgPool.query(
         'UPDATE records SET value = $1, version = version + 1 WHERE key = $2',
         [JSON.stringify(value), key]
       );
+      return;
+    }
+    if (typeof expectedVersion === 'number') {
+      const info = this.sqliteDb.prepare('UPDATE records SET value=?, version=version+1 WHERE key=? AND version=?').run(JSON.stringify(value), key, expectedVersion);
+      if (info.changes === 0) {
+        throw new Error('Conflito de concorrência detectado ao atualizar o registro.');
+      }
       return;
     }
     this.sqliteDb.prepare('UPDATE records SET value=?, version=version+1 WHERE key=?').run(JSON.stringify(value), key);
@@ -178,11 +229,11 @@ export class DatabaseAdapter {
   async getAllRecords() {
     if (this.type === 'postgres') {
       const res = await this.pgPool.query('SELECT key, value, version FROM records');
-      return res.rows.map(r => ({ key: r.key, value: JSON.parse(r.value), version: r.version }));
+      return res.rows.map(r => ({ key: r.key, value: safeParseJson(r.value), version: r.version }));
     }
     return this.sqliteDb.prepare('SELECT key, value, version FROM records').all().map(r => ({
       key: r.key,
-      value: JSON.parse(r.value),
+      value: safeParseJson(r.value),
       version: r.version
     }));
   }
@@ -190,27 +241,27 @@ export class DatabaseAdapter {
   async getAllOrders() {
     if (this.type === 'postgres') {
       const res = await this.pgPool.query('SELECT data FROM orders ORDER BY number DESC');
-      return res.rows.map(r => JSON.parse(r.data));
+      return res.rows.map(r => safeParseJson(r.data));
     }
-    return this.sqliteDb.prepare('SELECT data FROM orders ORDER BY number DESC').all().map(r => JSON.parse(r.data));
+    return this.sqliteDb.prepare('SELECT data FROM orders ORDER BY number DESC').all().map(r => safeParseJson(r.data));
   }
 
   async getOrderById(id) {
     if (this.type === 'postgres') {
       const res = await this.pgPool.query('SELECT * FROM orders WHERE id = $1', [id]);
-      return res.rows[0] ? { ...res.rows[0], data: JSON.parse(res.rows[0].data) } : null;
+      return res.rows[0] ? { ...res.rows[0], data: safeParseJson(res.rows[0].data) } : null;
     }
     const row = this.sqliteDb.prepare('SELECT * FROM orders WHERE id=?').get(id);
-    return row ? { ...row, data: JSON.parse(row.data) } : null;
+    return row ? { ...row, data: safeParseJson(row.data) } : null;
   }
 
   async getOrderByIdemHash(idemHash) {
     if (this.type === 'postgres') {
       const res = await this.pgPool.query('SELECT data FROM orders WHERE idem_hash = $1', [idemHash]);
-      return res.rows[0] ? JSON.parse(res.rows[0].data) : null;
+      return res.rows[0] ? safeParseJson(res.rows[0].data) : null;
     }
     const row = this.sqliteDb.prepare('SELECT data FROM orders WHERE idem_hash=?').get(idemHash);
-    return row ? JSON.parse(row.data) : null;
+    return row ? safeParseJson(row.data) : null;
   }
 
   async getNextOrderNumber() {
@@ -269,6 +320,24 @@ export class DatabaseAdapter {
       return;
     }
     this.sqliteDb.prepare('DELETE FROM sessions WHERE hash=?').run(tokenHash);
+  }
+
+  async listAudit({ from, to, action, limit = 200 }) {
+    const conditions = [];
+    const params = [];
+    if (from) { conditions.push('at >= ?'); params.push(from); }
+    if (to) { conditions.push('at < ?'); params.push(to); }
+    if (action) { conditions.push('action = ?'); params.push(action); }
+    const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    const size = Math.min(Math.max(Number(limit) || 200, 1), 1000);
+    if (this.type === 'postgres') {
+      // Use numbered placeholders independently of SQLite query syntax.
+      let n = 0;
+      const sql = ('SELECT id, at, action, resource FROM audit' + where).replace(/\?/g, () => '$' + (++n)) + ' ORDER BY at DESC, id DESC LIMIT $' + (++n);
+      const result = await this.pgPool.query(sql, [...params, size]);
+      return result.rows;
+    }
+    return this.sqliteDb.prepare('SELECT id, at, action, resource FROM audit' + where + ' ORDER BY at DESC, id DESC LIMIT ?').all(...params, size);
   }
 
   async addAudit(id, at, action, resource) {

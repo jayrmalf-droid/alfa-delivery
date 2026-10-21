@@ -1,5 +1,18 @@
 // Dados pré-carregados da Alfa Salgados (extraídos diretamente da produção)
-import type { StoreSettings, Category, Product, Neighborhood, DiscountCoupon, ProductOptionGroup, ProductOption, ComboItem, Order } from '../types';
+import type { StoreSettings, Category, Product, Neighborhood, DiscountCoupon, ProductOptionGroup, ProductOption, ComboItem, Order, Flavor } from '../types';
+
+export const INITIAL_FLAVORS: Flavor[] = [
+  { id: 'flv_coxinha', name: 'Coxinha de Frango com Catupiry', is_active: true, sort_order: 1 },
+  { id: 'flv_quibe', name: 'Quibe Tradicional com Hortelã', is_active: true, sort_order: 2 },
+  { id: 'flv_bolinha_queijo', name: 'Bolinha de Queijo Crocante', is_active: true, sort_order: 3 },
+  { id: 'flv_risoles_pq', name: 'Risoles de Presunto e Queijo', is_active: true, sort_order: 4 },
+  { id: 'flv_risoles_milho', name: 'Risoles de Milho Verde com Queijo', is_active: true, sort_order: 5 },
+  { id: 'flv_pastel_carne', name: 'Pastelzinho de Carne Especial', is_active: true, sort_order: 6 },
+  { id: 'flv_pastel_frango', name: 'Pastelzinho de Frango Cremoso', is_active: true, sort_order: 7 },
+  { id: 'flv_enroladinho', name: 'Enroladinho de Salsicha', is_active: true, sort_order: 8 },
+  { id: 'flv_travesseirinho_pizza', name: 'Travesseirinho de Pizza', is_active: true, sort_order: 9 },
+  { id: 'flv_churros', name: 'Mini Churros de Doce de Leite', is_active: true, sort_order: 10 }
+];
 
 export const INITIAL_SETTINGS: StoreSettings = {
   business_name: "ALFA SALGADOS",
@@ -28,6 +41,13 @@ export const INITIAL_SETTINGS: StoreSettings = {
   order_sound_type: 'bell',
   order_sound_duration: 5,
   order_sound_volume: 85,
+  loyalty_enabled: true,
+  loyalty_program_name: "Clube 10 Pedidos",
+  loyalty_min_order_value: 45,
+  loyalty_stamps_goal: 10,
+  loyalty_discount_percent: 50,
+  loyalty_max_discount_value: 35,
+  loyalty_expiration_days: 90,
   weekly_schedule: {"0":{"isOpen":true,"open":"10:00","close":"22:00"},"1":{"isOpen":true,"open":"10:00","close":"22:00"},"2":{"isOpen":true,"open":"10:00","close":"22:00"},"3":{"isOpen":true,"open":"10:00","close":"22:00"},"4":{"isOpen":true,"open":"10:00","close":"22:00"},"5":{"isOpen":true,"open":"10:00","close":"22:00"},"6":{"isOpen":false,"open":"10:00","close":"22:00"}}
 };
 
@@ -952,8 +972,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     "updated_at": "2026-09-06T13:28:45.094009+00:00",
     "product_mode": "combo",
     "combo_price_mode": "fixed",
-    "combo_min_qty": 10,
-    "combo_max_qty": 10,
+    "combo_min_qty": 150,
+    "combo_max_qty": 150,
     "flavor_count": null,
     "flavor_price_rule": "most_expensive",
     "pizza_has_stuffed_crust": false,

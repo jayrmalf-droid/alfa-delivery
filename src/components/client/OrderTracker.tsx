@@ -1,7 +1,12 @@
+import { useDialog } from '../../utils/useDialog';
+import { orderTracking } from '../../domain/orderTracking';
+import { formatBusinessDateTime, formatBusinessDate } from '../../domain/businessDates';
 import { normalizePhone } from '../../domain/rules';
-import React from 'react';
-import { Order, StoreSettings } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Order, StoreSettings, LoyaltyStatus } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
+import { fetchLoyaltyStatus } from '../../services/api';
+import { LoyaltyCard } from './LoyaltyCard';
 import {
   X,
   Clock,
@@ -20,36 +25,28 @@ interface OrderTrackerProps {
 }
 
 export const OrderTracker: React.FC<OrderTrackerProps> = ({ order, onClose, settings }) => {
+  const [loyaltyStatus, setLoyaltyStatus] = useState<LoyaltyStatus | null>(null);
+
+  useEffect(() => {
+    if (order?.customer_phone && settings.loyalty_enabled !== false) {
+      let active = true;
+      fetchLoyaltyStatus(order.customer_phone)
+        .then(data => { if (active) setLoyaltyStatus(data); })
+        .catch(() => {});
+      return () => { active = false; };
+    }
+  }, [order?.customer_phone, settings.loyalty_enabled]);
+
+  useDialog(!!order,onClose);
   if (!order) return null;
 
-  const steps = [
-    { key: 'pending', title: 'Pedido Recebido', desc: 'Aguardando confirmação', icon: Clock },
-    { key: 'preparing', title: 'Em Preparo', desc: 'Seus salgados estão sendo feitos', icon: UtensilsCrossed },
-    {
-      key: 'delivering',
-      title: order.delivery_type === 'delivery' ? 'Saiu para Entrega' : 'Pronto para Retirada',
-      desc: order.delivery_type === 'delivery' ? 'O motoboy está a caminho' : 'Pode retirar no balcão',
-      icon: Bike
-    },
-    { key: 'delivered', title: 'Finalizado', desc: 'Pedido entregue com sucesso!', icon: CheckCircle }
-  ];
-
-  const getStepIndex = (status: string) => {
-    switch (status) {
-      case 'pending': return 0;
-      case 'preparing': return 1;
-      case 'delivering':
-      case 'ready': return 2;
-      case 'delivered': return 3;
-      default: return 0;
-    }
-  };
-
-  const currentStep = getStepIndex(order.status);
-  const isCancelled = order.status === 'cancelled';
+  const progress=orderTracking(order.status,order.delivery_type||'pickup');
+  const steps=progress.stages.map(stage=>({...stage,icon:stage.key==='delivered'?CheckCircle:stage.key==='delivering'?Bike:stage.key==='preparing'?UtensilsCrossed:Clock}));
+  const currentStep=progress.index;
+  const isCancelled=progress.cancelled;
 
   return (
-    <div style={{
+    <div role="dialog" aria-modal="true" aria-labelledby="order-tracker-title" className="order-tracker-backdrop" onClick={event=>{if(event.target===event.currentTarget)onClose();}} style={{
       position: 'fixed',
       inset: 0,
       zIndex: 80,
@@ -61,7 +58,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ order, onClose, sett
       padding: 16
     }}>
       <div
-        className="card animate-fade-in"
+        className="card animate-fade-in order-tracker-sheet"
         style={{
           width: '100%',
           maxWidth: 520,
@@ -85,15 +82,17 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ order, onClose, sett
           color: '#fff'
         }}>
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 800 }}>
+            <h3 id="order-tracker-title" style={{ fontSize: '1.2rem', fontWeight: 800 }}>
               Acompanhar Pedido #{order.order_number}
             </h3>
             <span style={{ fontSize: '0.8rem', opacity: 0.9 }}>
-              Alfa Salgados Delivery
+              {settings.business_name || 'Alfa Salgados Delivery'}
             </span>
           </div>
 
           <button
+            type="button"
+            aria-label="Fechar acompanhamento do pedido"
             onClick={onClose}
             style={{
               padding: 6,
@@ -107,32 +106,20 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ order, onClose, sett
         </div>
 
         {/* Content */}
-        <div style={{ padding: '24px 20px', overflowY: 'auto', flexGrow: 1 }}>
-          {isCancelled ? (
-            <div style={{
-              textAlign: 'center',
-              padding: 24,
-              backgroundColor: 'var(--color-primary-subtle)',
-              borderRadius: 14,
-              border: '1px solid var(--color-primary-border)',
-              color: 'var(--color-primary-dark)',
-              marginBottom: 20
-            }}>
-              <h4 style={{ fontSize: '1.1rem', fontWeight: 800 }}>Pedido Cancelado</h4>
-              <p style={{ fontSize: '0.88rem', marginTop: 4 }}>
-                Este pedido foi cancelado pelo estabelecimento. Entre em contato para mais detalhes.
-              </p>
-            </div>
-          ) : (
+        <div className="order-tracker-content" style={{ padding: '24px 20px', overflowY: 'auto', flexGrow: 1 }}>
+          <section className={`tracking-current ${isCancelled?'cancelled':''}`} role="status" aria-live="polite"><span>SITUAÇÃO DO PEDIDO</span><h4>{progress.title}</h4><p>{progress.description}</p></section>
+          <p className="tracking-date">Pedido criado em {formatBusinessDateTime(order.created_at)} · Horário da Bahia</p>
+          {order.preorder_date&&<p className="tracking-date">Agendado para {formatBusinessDate(order.preorder_date)} · {order.preorder_time||'Horário não informado'}</p>}
+          {!isCancelled && (
             /* Timeline */
-            <div style={{ marginBottom: 24, padding: '0 10px' }}>
+            <div className="tracking-timeline" role="list" aria-label="Etapas do pedido" style={{ marginBottom: 24, padding: '0 10px' }}>
               {steps.map((step, idx) => {
                 const IconComponent = step.icon;
                 const isPassed = idx <= currentStep;
                 const isCurrent = idx === currentStep;
 
                 return (
-                  <div key={step.key} style={{ display: 'flex', gap: 16, position: 'relative' }}>
+                  <div key={step.key} role="listitem" aria-current={isCurrent?'step':undefined} style={{ display: 'flex', gap: 16, position: 'relative' }}>
                     {/* Vertical line */}
                     {idx < steps.length - 1 && (
                       <div style={{
@@ -211,7 +198,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ order, onClose, sett
 
             <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
               {order.items?.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <div key={idx} className="tracking-item-row" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span>{item.quantity}x {item.product_name}</span>
                   <span style={{ fontWeight: 600 }}>{formatCurrency(item.subtotal)}</span>
                 </div>
@@ -232,6 +219,13 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ order, onClose, sett
               <span style={{ color: 'var(--color-primary-dark)' }}>{formatCurrency(order.total)}</span>
             </div>
           </div>
+
+          {/* Loyalty Card */}
+          {loyaltyStatus && (
+            <div style={{ marginTop: 16 }}>
+              <LoyaltyCard loyalty={loyaltyStatus} />
+            </div>
+          )}
         </div>
 
         {/* Footer WhatsApp direct button */}

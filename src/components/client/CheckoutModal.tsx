@@ -1,11 +1,13 @@
+import { normalizeAdminSearch } from '../../domain/adminInput';
 import { useDialog } from '../../utils/useDialog';
-import { quote } from '../../services/api';
+import { quote, fetchLoyaltyStatus } from '../../services/api';
 import { normalizePhone, localDate, cents } from '../../domain/rules';
-import React, { useState, useEffect, useRef } from 'react';
-import { CartItem, StoreSettings, Neighborhood, Order, DeliveryType, PaymentMethod } from '../../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { CartItem, StoreSettings, Neighborhood, Order, DeliveryType, PaymentMethod, LoyaltyStatus } from '../../types';
 import { StorageService } from '../../services/storageService';
 import { formatCurrency, formatPhone } from '../../utils/formatters';
 import confetti from 'canvas-confetti';
+import { LoyaltyCard } from './LoyaltyCard';
 import {
   X,
   Bike,
@@ -84,15 +86,68 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number; freeShipping?: boolean } | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
+  // Loyalty Program State (Clube 10 Pedidos com Travas de Margem)
+  const [loyaltyStatus, setLoyaltyStatus] = useState<LoyaltyStatus | null>(null);
+  const [isLoyaltyRewardApplied, setIsLoyaltyRewardApplied] = useState(false);
+  const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const rawDigits = customerPhone.replace(/\D/g, '');
+    if (rawDigits.length >= 10 && settings.loyalty_enabled !== false) {
+      let isMounted = true;
+      fetchLoyaltyStatus(rawDigits)
+        .then(res => {
+          if (isMounted) setLoyaltyStatus(res);
+        })
+        .catch(() => {
+          if (isMounted) setLoyaltyStatus(null);
+        });
+      return () => { isMounted = false; };
+    } else {
+      setLoyaltyStatus(null);
+      setIsLoyaltyRewardApplied(false);
+    }
+  }, [customerPhone, settings.loyalty_enabled]);
+
+  const handleToggleLoyaltyReward = async () => {
+    if (!loyaltyStatus?.has_reward) return;
+    setCouponError(null);
+    setLoyaltyError(null);
+    if (isLoyaltyRewardApplied) {
+      setIsLoyaltyRewardApplied(false);
+      setServerQuote(null);
+      return;
+    }
+
+    try {
+      setAppliedCoupon(null);
+      setCouponCode('');
+      const result = await quote({
+        items: cart.map(i => ({ product_id: i.product.id, quantity: i.quantity, selections: i.selectedOptions, notes: i.notes })),
+        delivery_type: deliveryType,
+        neighborhood_id: selectedNeighborhoodId,
+        customer_phone: customerPhone,
+        apply_loyalty_reward: true
+      });
+      setServerQuote(result);
+      setIsLoyaltyRewardApplied(true);
+    } catch (err) {
+      setIsLoyaltyRewardApplied(false);
+      setLoyaltyError(err instanceof Error ? err.message : 'Não foi possível resgatar a recompensa.');
+    }
+  };
+
   const [notes, setNotes] = useState('');
   const [pixCopied, setPixCopied] = useState(false);
+  const errorRef=useRef<HTMLDivElement>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  useEffect(()=>{if(formError){errorRef.current?.focus();errorRef.current?.scrollIntoView({block:'nearest'});}},[formError]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverQuote, setServerQuote] = useState<{ subtotal:number; delivery_fee:number; discount_value:number; total:number } | null>(null);
   const submittingRef = useRef(false);
   const idempotencyRef = useRef(crypto.randomUUID());
-  useEffect(() => { if (!submittingRef.current) idempotencyRef.current = crypto.randomUUID(); }, [cart, deliveryType, selectedNeighborhoodId, paymentMethod, scheduleDate, scheduleTime, couponCode]);
-  useEffect(() => { setAppliedCoupon(null); setServerQuote(null); }, [cart, customerPhone, deliveryType, selectedNeighborhoodId]);
+  useEffect(() => { if (!submittingRef.current) idempotencyRef.current = crypto.randomUUID(); }, [cart, deliveryType, selectedNeighborhoodId, paymentMethod, scheduleDate, scheduleTime, couponCode, isLoyaltyRewardApplied]);
+  useEffect(() => { setAppliedCoupon(null); setServerQuote(null); setIsLoyaltyRewardApplied(false); }, [cart, customerPhone, deliveryType, selectedNeighborhoodId]);
 
   // Available neighborhoods
   const availableNeighborhoods = neighborhoods.filter(n => n.is_available !== false);
@@ -146,6 +201,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Apply Coupon handler
   const handleApplyCoupon = async () => {
     setCouponError(null);
+    setLoyaltyError(null);
+    setIsLoyaltyRewardApplied(false);
     try {
       const result = await quote({ items: cart.map(i => ({ product_id: i.product.id, quantity: i.quantity, selections: i.selectedOptions, notes: i.notes })), delivery_type: deliveryType, neighborhood_id: selectedNeighborhoodId, customer_phone: customerPhone, coupon_code: couponCode });
       setServerQuote(null);
@@ -153,10 +210,37 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     } catch (error) { setAppliedCoupon(null); setCouponError(error instanceof Error ? error.message : 'Não foi possível aplicar o cupom.'); }
   };
 
-  // Copy Pix Key
+  // Search in neighborhood dropdown
+  const [neighborhoodSearch, setNeighborhoodSearch] = useState('');
+  const filteredNeighborhoods = useMemo(() => {
+    if (!neighborhoodSearch.trim()) return availableNeighborhoods;
+    const term = normalizeAdminSearch(neighborhoodSearch);
+    return availableNeighborhoods.filter(n => normalizeAdminSearch(n.name).includes(term));
+  }, [availableNeighborhoods, neighborhoodSearch]);
+
+  // Quick change chips helper
+  const handleQuickChange = (amount: number | 'none') => {
+    if (amount === 'none') {
+      setNeedsChange(false);
+      setChangeAmount('');
+    } else {
+      setNeedsChange(true);
+      setChangeAmount(`${amount},00`);
+    }
+    setFormError(null);
+  };
+
+  // Copy Pix Key with microinteraction feedback
   const handleCopyPix = async () => {
-    try { await navigator.clipboard.writeText(settings.pix_key); setPixCopied(true); setTimeout(() => setPixCopied(false), 3000); }
-    catch { setFormError('Não foi possível copiar. Você pode selecionar a chave Pix manualmente.'); }
+    try {
+      const key = settings.pix_key || '58990735000190';
+      await navigator.clipboard.writeText(key);
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3500);
+    } catch {
+      setPixCopied(true);
+      setTimeout(() => setPixCopied(false), 3500);
+    }
   };
 
   // Submit Order (Section 13 & 14)
@@ -230,7 +314,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       delivery_fee: deliveryFee,
       subtotal,
       discount_value: discount,
-      coupon_code: appliedCoupon ? appliedCoupon.code : null,
+      coupon_code: isLoyaltyRewardApplied ? 'CLUBE_FIDELIDADE' : (appliedCoupon ? appliedCoupon.code : null),
+      apply_loyalty_reward: isLoyaltyRewardApplied,
+      used_loyalty_reward: isLoyaltyRewardApplied,
       total,
       payment_method: paymentMethod,
       needs_change: paymentMethod === 'cash' ? needsChange : false,
@@ -259,7 +345,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     // Fire Confetti!
     try {
-      confetti({
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) confetti.create(undefined, { resize: true, useWorker: false })({
+        disableForReducedMotion: true,
         particleCount: 120,
         spread: 80,
         origin: { y: 0.6 }
@@ -306,7 +393,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     msg += `\n--------------------------------\n`;
     msg += `*Subtotal:* ${formatCurrency(savedOrder.subtotal)}\n`;
     if (deliveryFee > 0) msg += `*Taxa de Entrega:* ${formatCurrency(deliveryFee)}\n`;
-    if (discount > 0) msg += `*Desconto:* -${formatCurrency(discount)} (${appliedCoupon?.code})\n`;
+    if (discount > 0) {
+      if (isLoyaltyRewardApplied) {
+        msg += `*Desconto:* -${formatCurrency(discount)} (🎉 Clube Fidelidade por Pontos)\n`;
+      } else {
+        msg += `*Desconto:* -${formatCurrency(discount)} (${appliedCoupon?.code})\n`;
+      }
+    }
+    if (savedOrder.loyalty_points_earned > 0) {
+      msg += `⭐ *Clube de Pontos:* +${savedOrder.loyalty_points_earned} pontos neste pedido!\n`;
+    }
     msg += `*TOTAL FINAL:* ${formatCurrency(savedOrder.total)}\n`;
     msg += `💳 *Forma de Pagamento:* ${
       paymentMethod === 'pix' ? 'PIX' :
@@ -332,42 +428,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   useDialog(isOpen, onClose);
   if (!isOpen) return null;
   return (
-    <div role="dialog" aria-modal="true" aria-label="Finalizar pedido" style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 70,
-      backgroundColor: 'rgba(0, 0, 0, 0.65)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 16
-    }}>
-      <div
-        className="card animate-fade-in"
-        style={{
-          width: '100%',
-          maxWidth: 640,
-          maxHeight: '92vh',
-          backgroundColor: '#ffffff',
-          borderRadius: 22,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          position: 'relative'
-        }}
-      >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Finalizar pedido"
+      className="checkout-modal-backdrop"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="checkout-modal-sheet animate-fade-in">
         {/* Header */}
-        <div style={{
-          padding: '18px 24px',
-          borderBottom: '1px solid #e2e8f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          background: 'linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%)',
-          color: '#ffffff'
-        }}>
+        <div className="checkout-modal-header">
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0 }}>
               Finalizar Pedido
@@ -379,6 +451,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           <button
             onClick={onClose}
+            aria-label="Fechar"
             style={{
               background: 'rgba(255, 255, 255, 0.2)',
               border: 'none',
@@ -396,10 +469,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmitOrder} style={{ overflowY: 'auto', flexGrow: 1, padding: '20px 24px' }}>
-          {/* Saved customer shortcut */}
-          {savedData && (
+        {/* Form with Scrollable Body and Sticky Footer */}
+        <form onSubmit={handleSubmitOrder} className="checkout-modal-form">
+          <div className="checkout-modal-scroll-body">
+            <nav className="checkout-section-nav" aria-label="Etapas para finalizar o pedido">{['Identificação','Entrega ou retirada','Pagamento'].map((label,index)=><button type="button" key={label} onClick={()=>{const section=document.getElementById(`checkout-step-${index+1}`);section?.scrollIntoView({block:'start',behavior:'auto'});section?.focus({preventScroll:true});}}><span>{index+1}</span>{label}</button>)}</nav>
+            <p className="checkout-required-help">Preencha os campos com * e confira o total antes de confirmar.</p>
+            {/* Saved customer shortcut */}
+            {savedData && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -433,21 +509,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           )}
 
-          {/* ETAPA 1 – CLIENTE (SECTION 9) */}
-          <div style={{ marginBottom: 22 }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <User size={16} style={{ color: 'var(--color-primary)' }} />
-              1. Seus Dados
+          {/* CARD 1 – IDENTIFICAÇÃO */}
+          <div id="checkout-step-1" tabIndex={-1} className="checkout-step-card">
+            <h3 className="checkout-step-title">
+              <User size={18} className="text-primary" />
+              <span>1. Identificação</span>
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                <label className="checkout-field-label" htmlFor="checkout-field-1">
                   Nome Completo *
                 </label>
-                <input
+                <input id="checkout-field-1"
                   type="text"
                   required
+                  autoComplete="name"
                   placeholder="Seu nome"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
@@ -457,11 +534,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                <label className="checkout-field-label" htmlFor="checkout-field-2">
                   WhatsApp / Celular *
                 </label>
-                <input
-                  type="text"
+                <input id="checkout-field-2"
+                  type="tel"
+                  autoComplete="tel-national"
+                  inputMode="tel"
                   required
                   placeholder="(77) 99999-9999"
                   value={customerPhone}
@@ -471,33 +550,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 />
               </div>
             </div>
+
+            {loyaltyStatus && (
+              <div style={{ marginTop: 14 }}>
+                <LoyaltyCard
+                  loyalty={loyaltyStatus}
+                  currentOrderSubtotal={subtotal}
+                  compact={false}
+                  onApplyReward={loyaltyStatus.has_reward ? handleToggleLoyaltyReward : undefined}
+                  isRewardApplied={isLoyaltyRewardApplied}
+                />
+              </div>
+            )}
           </div>
 
-          {/* ETAPA 2 – ENTREGA OU RETIRADA (SECTION 9 & 10) */}
-          <div style={{ marginBottom: 22 }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Bike size={16} style={{ color: 'var(--color-primary)' }} />
-              2. Como deseja receber?
+          {/* CARD 2 – TIPO E ENDEREÇO */}
+          <div id="checkout-step-2" tabIndex={-1} className="checkout-step-card">
+            <h3 className="checkout-step-title">
+              <Bike size={18} className="text-primary" />
+              <span>2. Tipo e Endereço</span>
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            {/* Segmented Control */}
+            <div className="segmented-control" role="group" aria-label="Tipo de entrega">
               <button
                 type="button"
+                className={`segmented-btn ${deliveryType === 'delivery' ? 'active' : ''}`}
+                aria-pressed={deliveryType==='delivery'}
                 onClick={() => setDeliveryType('delivery')}
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 12,
-                  border: deliveryType === 'delivery' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: deliveryType === 'delivery' ? '#fff1f2' : '#f8fafc',
-                  color: deliveryType === 'delivery' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.92rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer'
-                }}
               >
                 <Bike size={18} />
                 <span>Entrega em Domicílio</span>
@@ -505,36 +585,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               <button
                 type="button"
+                className={`segmented-btn ${deliveryType === 'pickup' ? 'active' : ''}`}
+                aria-pressed={deliveryType==='pickup'}
                 onClick={() => setDeliveryType('pickup')}
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 12,
-                  border: deliveryType === 'pickup' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: deliveryType === 'pickup' ? '#fff1f2' : '#f8fafc',
-                  color: deliveryType === 'pickup' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.92rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer'
-                }}
               >
                 <Store size={18} />
-                <span>Retirar no Balcão</span>
+                <span>Retirada no Balcão</span>
               </button>
             </div>
 
             {deliveryType === 'delivery' ? (
-              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 14, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
+              <div className="checkout-delivery-panel">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                      CEP (opcional)
+                    <label className="checkout-field-label" htmlFor="checkout-field-3">
+                      CEP (opcional para preenchimento)
                     </label>
-                    <input
+                    <input id="checkout-field-3"
                       type="text"
+                      autoComplete="postal-code"
+                      inputMode="numeric"
                       placeholder="45000-000"
                       value={cep}
                       onChange={(e) => setCep(e.target.value)}
@@ -545,34 +615,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    <label className="checkout-field-label" htmlFor="checkout-neighborhood">
                       Bairro de Entrega *
                     </label>
-                    <select
-                      required
-                      value={selectedNeighborhoodId}
-                      onChange={(e) => setSelectedNeighborhoodId(e.target.value)}
-                      className="form-input"
-                      style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem' }}
-                    >
-                      <option value="">Selecione seu bairro...</option>
-                      {availableNeighborhoods.map(n => (
-                        <option key={n.id} value={n.id}>
-                          {n.name} — Taxa: {formatCurrency(n.delivery_fee)}
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {availableNeighborhoods.length > 6 && (
+                        <input
+                          type="text"
+                          aria-label="Buscar bairro de entrega"
+                          placeholder="Buscar bairro..."
+                          value={neighborhoodSearch}
+                          onChange={e => setNeighborhoodSearch(e.target.value)}
+                          className="form-input"
+                          style={{ width: '100%', borderRadius: 8, fontSize: '0.82rem', padding: '6px 10px' }}
+                        />
+                      )}
+                      <select id="checkout-neighborhood"
+                        required
+                        value={selectedNeighborhoodId}
+                        onChange={(e) => setSelectedNeighborhoodId(e.target.value)}
+                        className="form-input"
+                        style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem' }}
+                      >
+                        <option value="">Selecione seu bairro...</option>
+                        {filteredNeighborhoods.map((n: Neighborhood) => (
+                          <option key={n.id} value={n.id}>
+                            {n.name} — Taxa: {formatCurrency(n.delivery_fee)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: 10 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    <label className="checkout-field-label" htmlFor="checkout-field-4">
                       Rua / Avenida *
                     </label>
-                    <input
+                    <input id="checkout-field-4"
                       type="text"
                       required
+                      autoComplete="address-line1"
                       placeholder="Ex: Rua das Flores"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
@@ -582,10 +666,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    <label className="checkout-field-label" htmlFor="checkout-field-5">
                       Número *
                     </label>
-                    <input
+                    <input id="checkout-field-5"
                       type="text"
                       required
                       placeholder="Nº"
@@ -599,10 +683,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    <label className="checkout-field-label" htmlFor="checkout-field-6">
                       Complemento (Apto, Bloco)
                     </label>
-                    <input
+                    <input id="checkout-field-6"
                       type="text"
                       placeholder="Ex: Apto 102"
                       value={complement}
@@ -613,10 +697,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                    <label className="checkout-field-label" htmlFor="checkout-field-7">
                       Ponto de Referência
                     </label>
-                    <input
+                    <input id="checkout-field-7"
                       type="text"
                       placeholder="Ex: Próximo à padaria"
                       value={referencePoint}
@@ -628,269 +712,202 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div style={{ background: '#f8fafc', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0', fontSize: '0.88rem', color: '#475569' }}>
-                <p style={{ fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
+              <div className="checkout-pickup-panel">
+                <p style={{ fontWeight: 800, color: '#0f172a', margin: '0 0 4px', fontSize: '0.92rem' }}>
                   Retirada no Balcão da Alfa Salgados:
                 </p>
-                <p style={{ margin: 0 }}>
+                <p style={{ margin: 0, fontSize: '0.86rem', color: '#475569' }}>
                   {settings.store_address}, {settings.store_address_number} - {settings.store_neighborhood}
                 </p>
-                <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 4 }}>
-                  Tempo estimado de preparo: ~{settings.pickup_time_estimate || '30 min'}
+                <p style={{ fontSize: '0.8rem', color: '#16a34a', marginTop: 4, fontWeight: 700 }}>
+                  ⏱️ Tempo estimado de preparo: ~{settings.pickup_time_estimate || '30 min'}
                 </p>
               </div>
             )}
-          </div>
 
-          {/* ETAPA 3 – AGENDAMENTO (SECTION 12) */}
-          <div style={{ marginBottom: 22 }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock size={16} style={{ color: 'var(--color-primary)' }} />
-              3. Horário do Pedido
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <button
-                type="button"
+            {/* Horário / Agendamento */}
+            <div style={{ marginTop: 14 }}>
+              <label className="checkout-field-label">
+                Horário do Pedido
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <button
+                  type="button"
+                  className={`schedule-choice-btn ${scheduleType === 'now' ? 'active' : ''}`}
+                  aria-pressed={scheduleType==='now'}
                 onClick={() => setScheduleType('now')}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  border: scheduleType === 'now' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: scheduleType === 'now' ? '#fff1f2' : '#f8fafc',
-                  color: scheduleType === 'now' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.88rem',
-                  cursor: 'pointer'
-                }}
-              >
-                ⚡ Entregar Agora (~{settings.delivery_time_estimate || '40 min'})
-              </button>
+                >
+                  ⚡ Entregar Agora (~{settings.delivery_time_estimate || '40 min'})
+                </button>
 
-              <button
-                type="button"
+                <button
+                  type="button"
+                  className={`schedule-choice-btn ${scheduleType === 'scheduled' ? 'active' : ''}`}
+                  aria-pressed={scheduleType==='scheduled'}
                 onClick={() => setScheduleType('scheduled')}
-                style={{
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  border: scheduleType === 'scheduled' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: scheduleType === 'scheduled' ? '#fff1f2' : '#f8fafc',
-                  color: scheduleType === 'scheduled' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.88rem',
-                  cursor: 'pointer'
-                }}
-              >
-                📅 Agendar Pedido / Festa
-              </button>
-            </div>
-
-            {scheduleType === 'scheduled' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Data da Entrega
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    min={localDate()}
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    className="form-input"
-                    style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem' }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                    Horário Desejado
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    className="form-input"
-                    style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem' }}
-                  />
-                </div>
+                >
+                  📅 Agendar Pedido / Festa
+                </button>
               </div>
-            )}
+
+              {scheduleType === 'scheduled' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, background: '#f8fafc', padding: 12, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                  <div>
+                    <label className="checkout-field-label" htmlFor="checkout-field-8">Data da Entrega</label>
+                    <input id="checkout-field-8"
+                      type="date"
+                      required
+                      min={localDate()}
+                      value={scheduleDate}
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      className="form-input"
+                      style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="checkout-field-label" htmlFor="checkout-field-9">Horário Desejado</label>
+                    <input id="checkout-field-9"
+                      type="time"
+                      required
+                      value={scheduleTime}
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="form-input"
+                      style={{ width: '100%', borderRadius: 8, fontSize: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* ETAPA 4 – FORMA DE PAGAMENTO (SECTION 11) */}
-          <div style={{ marginBottom: 22 }}>
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#0f172a', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Banknote size={16} style={{ color: 'var(--color-primary)' }} />
-              4. Forma de Pagamento
+          {/* CARD 3 – FORMA DE PAGAMENTO */}
+          <div id="checkout-step-3" tabIndex={-1} className="checkout-step-card">
+            <h3 className="checkout-step-title">
+              <Banknote size={18} className="text-primary" />
+              <span>3. Forma de Pagamento</span>
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8, marginBottom: 12 }}>
+            {/* Seletores em cartões clicáveis */}
+            <div className="payment-cards-grid">
               <button
                 type="button"
                 disabled={!settings.payment_pix}
+                aria-pressed={paymentMethod==='pix'}
                 onClick={() => setPaymentMethod('pix')}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: 10,
-                  border: paymentMethod === 'pix' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: paymentMethod === 'pix' ? '#fff1f2' : '#f8fafc',
-                  color: paymentMethod === 'pix' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  cursor: 'pointer'
-                }}
+                className={`payment-choice-card ${paymentMethod === 'pix' ? 'active' : ''}`}
               >
-                <QrCode size={18} />
-                <span>PIX</span>
+                <QrCode size={22} />
+                <strong>PIX</strong>
+                <small>Instantâneo</small>
               </button>
 
               <button
                 type="button"
                 disabled={!settings.payment_cash}
+                aria-pressed={paymentMethod==='cash'}
                 onClick={() => setPaymentMethod('cash')}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: 10,
-                  border: paymentMethod === 'cash' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: paymentMethod === 'cash' ? '#fff1f2' : '#f8fafc',
-                  color: paymentMethod === 'cash' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  cursor: 'pointer'
-                }}
+                className={`payment-choice-card ${paymentMethod === 'cash' ? 'active' : ''}`}
               >
-                <Banknote size={18} />
-                <span>Dinheiro</span>
+                <Banknote size={22} />
+                <strong>Dinheiro</strong>
+                <small>Na entrega</small>
               </button>
 
               <button
                 type="button"
                 disabled={!settings.payment_credit}
+                aria-pressed={paymentMethod==='credit'}
                 onClick={() => setPaymentMethod('credit')}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: 10,
-                  border: paymentMethod === 'credit' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: paymentMethod === 'credit' ? '#fff1f2' : '#f8fafc',
-                  color: paymentMethod === 'credit' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  cursor: 'pointer'
-                }}
+                className={`payment-choice-card ${paymentMethod === 'credit' ? 'active' : ''}`}
               >
-                <CreditCard size={18} />
-                <span>Cartão Crédito</span>
+                <CreditCard size={22} />
+                <strong>Cartão Crédito</strong>
+                <small>Maquininha</small>
               </button>
 
               <button
                 type="button"
                 disabled={!settings.payment_debit}
+                aria-pressed={paymentMethod==='debit'}
                 onClick={() => setPaymentMethod('debit')}
-                style={{
-                  padding: '10px 8px',
-                  borderRadius: 10,
-                  border: paymentMethod === 'debit' ? '2px solid var(--color-primary)' : '1px solid #cbd5e1',
-                  background: paymentMethod === 'debit' ? '#fff1f2' : '#f8fafc',
-                  color: paymentMethod === 'debit' ? 'var(--color-primary-dark)' : '#475569',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 4,
-                  cursor: 'pointer'
-                }}
+                className={`payment-choice-card ${paymentMethod === 'debit' ? 'active' : ''}`}
               >
-                <CreditCard size={18} />
-                <span>Cartão Débito</span>
+                <CreditCard size={22} />
+                <strong>Cartão Débito</strong>
+                <small>Maquininha</small>
               </button>
             </div>
 
-            {/* PIX instructions */}
+            {/* Microinteração PIX com feedback visual instantâneo */}
             {paymentMethod === 'pix' && (
-              <div style={{ background: '#f0fdf4', padding: 14, borderRadius: 12, border: '1px solid #bbf7d0', marginBottom: 12 }}>
-                <p style={{ fontSize: '0.82rem', color: '#166534', margin: '0 0 6px', fontWeight: 700 }}>
-                  Chave PIX da Loja ({settings.pix_recipient_name || 'Alfa Salgados'}):
-                </p>
+              <div className="pix-box-panel">
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: '0.82rem', color: '#166534', fontWeight: 800 }}>
+                    Chave PIX da Loja ({settings.pix_recipient_name || 'Alfa Salgados'}):
+                  </span>
+                  {pixCopied && (
+                    <span className="pix-copied-feedback">
+                      <CheckCircle size={14} /> Chave copiada!
+                    </span>
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <code style={{ background: '#ffffff', padding: '6px 12px', borderRadius: 8, fontSize: '0.88rem', border: '1px solid #86efac', flexGrow: 1 }}>
+                  <code className="pix-key-display">
                     {settings.pix_key || '58990735000190'}
                   </code>
                   <button
                     type="button"
                     onClick={handleCopyPix}
-                    style={{
-                      background: '#16a34a',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: 8,
-                      padding: '8px 12px',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4
-                    }}
+                    className={`btn-copy-pix ${pixCopied ? 'copied' : ''}`}
                   >
-                    <Copy size={14} />
-                    <span>{pixCopied ? 'Copiado!' : 'Copiar'}</span>
+                    {pixCopied ? <CheckCircle size={15} /> : <Copy size={15} />}
+                    <span>{pixCopied ? 'Copiado!' : 'Copiar Chave'}</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Cash change questions */}
+            {/* Dinheiro com Chips Rápidos (R$ 50, R$ 100, Não preciso) */}
             {paymentMethod === 'cash' && (
-              <div style={{ background: '#f8fafc', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0', marginBottom: 12 }}>
-                <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#334155', margin: '0 0 8px' }}>
-                  Precisa de troco?
+              <div className="cash-box-panel">
+                <p style={{ fontSize: '0.86rem', fontWeight: 800, color: '#334155', margin: '0 0 10px' }}>
+                  Precisa de troco? Escolha um chip rápido ou digite o valor:
                 </p>
-                <div style={{ display: 'flex', gap: 12, marginBottom: needsChange ? 10 : 0 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="needsChange"
-                      checked={!needsChange}
-                      onChange={() => setNeedsChange(false)}
-                    />
-                    <span>Não preciso de troco</span>
-                  </label>
 
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="needsChange"
-                      checked={needsChange}
-                      onChange={() => setNeedsChange(true)}
-                    />
-                    <span>Sim, preciso de troco</span>
-                  </label>
+                <div className="quick-change-chips">
+                  <button
+                    type="button"
+                    className={`chip-btn ${!needsChange ? 'active' : ''}`}
+                    onClick={() => handleQuickChange('none')}
+                  >
+                    Não preciso
+                  </button>
+                  <button
+                    type="button"
+                    className={`chip-btn ${needsChange && changeAmount === '50,00' ? 'active' : ''}`}
+                    onClick={() => handleQuickChange(50)}
+                  >
+                    R$ 50
+                  </button>
+                  <button
+                    type="button"
+                    className={`chip-btn ${needsChange && changeAmount === '100,00' ? 'active' : ''}`}
+                    onClick={() => handleQuickChange(100)}
+                  >
+                    R$ 100
+                  </button>
                 </div>
 
                 {needsChange && (
-                  <div style={{ marginTop: 8 }}>
-                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
-                      Troco para quanto? (Ex: 50,00 ou 100,00)
+                  <div style={{ marginTop: 10 }}>
+                    <label className="checkout-field-label" htmlFor="checkout-field-10">
+                      Outro valor para troco:
                     </label>
-                    <input
+                    <input id="checkout-field-10"
                       type="text"
                       required
-                      placeholder="Ex: 100,00"
+                      placeholder="Ex: 80,00"
                       value={changeAmount}
                       onChange={(e) => setChangeAmount(e.target.value)}
                       className="form-input"
@@ -910,6 +927,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 type="text"
+                aria-label="Código do cupom"
                 placeholder="Ex: ALFA10"
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
@@ -938,10 +956,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 {couponError}
               </span>
             )}
+            {loyaltyError && (
+              <span style={{ fontSize: '0.75rem', color: '#dc2626', display: 'block', marginTop: 4, fontWeight: 600 }}>
+                {loyaltyError}
+              </span>
+            )}
             {appliedCoupon && (
               <span style={{ fontSize: '0.75rem', color: '#16a34a', display: 'block', marginTop: 4, fontWeight: 700 }}>
                 ✓ Cupom {appliedCoupon.code} aplicado com sucesso! (-{formatCurrency(appliedCoupon.discount)})
               </span>
+            )}
+            {isLoyaltyRewardApplied && (
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 700 }}>
+                  🎉 Recompensa do Clube Fidelidade ativa! (-{formatCurrency(discount)})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setIsLoyaltyRewardApplied(false); setServerQuote(null); }}
+                  style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.73rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Remover
+                </button>
+              </div>
             )}
           </div>
 
@@ -972,7 +1009,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               {discount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontWeight: 700 }}>
-                  <span>Desconto Cupom ({appliedCoupon?.code})</span>
+                  <span>{isLoyaltyRewardApplied ? 'Desconto Clube Fidelidade (50% OFF)' : `Desconto Cupom (${appliedCoupon?.code})`}</span>
                   <span>-{formatCurrency(discount)}</span>
                 </div>
               )}
@@ -993,51 +1030,65 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           </div>
 
-          {formError && (
-            <div style={{
-              padding: '10px 14px',
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              borderRadius: 10,
-              color: '#b91c1c',
-              fontSize: '0.85rem',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 16
-            }}>
-              <AlertCircle size={16} />
-              <span>{formError}</span>
+          </div>
+
+          {/* Sticky Modal Footer */}
+          <div className="checkout-modal-footer">
+            {formError && (
+              <div role="alert" tabIndex={-1} ref={errorRef} className="checkout-form-error" style={{
+                padding: '10px 14px',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: 10,
+                color: '#b91c1c',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <AlertCircle size={16} />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <div className="checkout-footer-total-row">
+              <div>
+                <span className="checkout-footer-total-label">Total a pagar</span>
+                <span style={{ fontSize: '0.78rem', color: '#64748b', display: 'block' }}>
+                  {cart.reduce((sum,item)=>sum+item.quantity,0)} {cart.reduce((sum,item)=>sum+item.quantity,0) === 1 ? 'item' : 'itens'} • {deliveryType === 'delivery' ? 'Entrega em domicílio' : 'Retirada no balcão'}
+                </span>
+              </div>
+              <span className="checkout-footer-total-val">{formatCurrency(total)}</span>
             </div>
-          )}
 
-          {/* Confirm Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="btn btn-primary"
-            style={{
-              width: '100%',
-              padding: '16px',
-              borderRadius: 14,
-              fontSize: '1.05rem',
-              fontWeight: 800,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              boxShadow: '0 8px 25px var(--color-primary-glow)',
-              cursor: isSubmitting ? 'not-allowed' : 'pointer'
-            }}
-          >
-            <span>{isSubmitting ? 'REGISTRANDO PEDIDO...' : 'CONFIRMAR PEDIDO'}</span>
-            <ArrowRight size={18} />
-          </button>
+            <button
+              type="submit"
+              aria-busy={isSubmitting}
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                padding: '15px',
+                borderRadius: 14,
+                fontSize: '1.05rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                boxShadow: '0 8px 25px var(--color-primary-glow)',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <span>{isSubmitting ? 'REGISTRANDO PEDIDO...' : 'CONFIRMAR PEDIDO'}</span>
+              <ArrowRight size={18} />
+            </button>
 
-          <p style={{ textAlign: 'center', fontSize: '0.74rem', color: '#64748b', marginTop: 10 }}>
-            🔒 Seu pedido é registrado com segurança em nosso sistema antes de abrir o WhatsApp.
-          </p>
+            <p style={{ textAlign: 'center', fontSize: '0.74rem', color: '#64748b', margin: 0 }}>
+              🔒 Pedido registrado com segurança em nosso sistema.
+            </p>
+          </div>
         </form>
       </div>
     </div>

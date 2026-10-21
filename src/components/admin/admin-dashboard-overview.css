@@ -1,0 +1,38 @@
+.dashboard-scope{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:12px;color:#64748b;padding:12px 16px;border:1px solid #e2e8f0;background:#fff;border-radius:12px}
+.dashboard-scope strong{color:#0f766e;font-size:13px}
+.dashboard-jumps{display:flex;gap:8px;flex-wrap:wrap}
+.dashboard-jumps button{font:inherit;font-size:13px;font-weight:700;color:#475569;border:1px solid #dbe4ed;background:#fff;border-radius:10px;padding:11px 15px;cursor:pointer;min-height:42px}
+.admin-dashboard :focus-visible{outline:3px solid #0d9488;outline-offset:3px}
+.admin-dashboard [id^=dashboard-]{scroll-margin-top:16px;min-width:0}
+.dashboard-receivables-heading{grid-column:1/-1}
+.dashboard-receivables-heading h3{font-size:19px;margin:4px 0;color:#0f172a}
+.dashboard-receivables-heading p,.dashboard-section-note{font-size:13px;color:#64748b;line-height:1.65;margin:0 0 14px}
+.admin-dashboard .dashboard-detail-grid{grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)!important;align-items:start}
+.admin-dashboard .dashboard-recent-order{gap:12px;min-width:0;padding:14px!important}
+.dashboard-recent-order>div:first-child{min-width:0;flex:1;text-align:left}
+.dashboard-recent-order>div:first-child>div{flex-wrap:wrap}
+.dashboard-recent-order>div:last-child{flex-shrink:0}
+.dashboard-recent-order span{overflow-wrap:anywhere}
+.dashboard-recent-order>div:last-child>div{margin-top:7px}
+.dashboard-products>div>div{gap:12px;flex-wrap:wrap}
+.dashboard-products>div>div>div:first-child{min-width:0;flex:1 1 150px}
+.dashboard-products>div>div>div:first-child>span:first-child{flex-shrink:0}
+.dashboard-products>div>div>div:first-child>span:last-child{overflow-wrap:anywhere;min-width:0}
+.admin-dashboard .dashboard-metrics>.card{min-height:170px}
+@media(max-width:850px){.admin-dashboard .dashboard-detail-grid{grid-template-columns:minmax(0,1fr)!important}}
+@media(max-width:640px){
+.admin-shell .admin-dashboard{padding:12px!important;gap:16px!important}
+.dashboard-jumps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.dashboard-jumps button{padding:10px 6px;font-size:12px;line-height:1.4}
+.dashboard-scope{gap:6px;padding:12px}
+.dashboard-scope span{flex-basis:100%;line-height:1.6}
+.admin-dashboard .dashboard-recent,.admin-dashboard .dashboard-products{padding:16px!important}
+.admin-dashboard .dashboard-recent-order{flex-wrap:wrap;gap:10px;padding:12px!important}
+.dashboard-recent-order>div:first-child{flex-basis:100%}
+.dashboard-recent-order>div:last-child{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;text-align:left!important}
+.dashboard-recent-order>div:last-child>div{margin-top:0}
+.admin-dashboard .dashboard-receivables{grid-template-columns:minmax(0,1fr)!important}
+.admin-dashboard .dashboard-flow-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px}
+.admin-dashboard .dashboard-flow-stage{min-width:0;padding:12px!important}
+}
+.admin-shell .admin-dashboard .dashboard-periods button[aria-pressed=true]{background:#fff!important;color:#7f1d3a!important;box-shadow:0 2px 5px #0f172a20!important}

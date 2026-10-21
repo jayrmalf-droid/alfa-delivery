@@ -1,3 +1,7 @@
+> A homologação atual da 0.6.5 está pendente. Consulte VALIDACAO_0.6.5.md; os registros abaixo são históricos.
+
+> Documento histórico de versões anteriores. Não comprova homologação da 0.6.4. Para esta prévia, consulte VALIDACAO_0.6.4.md e TESTES_WINDOWS_0.6.4.md. A aprovação no Windows permanece pendente.
+
 # Alfa Salgados Delivery — Relatório de Homologação e Funcionalidades
 ## Versão 0.3.1 (Preparada para Produção)
 

@@ -1,0 +1,40 @@
+.admin-shell .admin-settings-tabs{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));overflow:visible!important;gap:8px!important;background:#f1f5f9!important;padding:10px!important}
+.admin-shell .admin-settings-tabs button{min-width:0;white-space:normal!important;text-align:left;justify-content:flex-start;min-height:48px;border-radius:10px!important;padding:10px 12px!important}
+.admin-settings-polish :focus-visible{outline:3px solid #0d9488;outline-offset:3px}
+.settings-section-intro{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border:1px solid #e2e8f0;border-radius:14px;background:linear-gradient(120deg,#f0fdfa,#fff)}
+.settings-section-intro span:first-child{font-size:10px;letter-spacing:.1em;font-weight:800;color:#0f766e}
+.settings-section-intro h3{margin:5px 0;font-size:19px;color:#0f172a}
+.settings-section-intro p{margin:0;color:#64748b;font-size:13px;line-height:1.6}
+.settings-draft-status{font-size:12px!important;letter-spacing:0!important;flex-shrink:0;background:#fff;padding:9px 12px;border:1px solid #dbe4ed;border-radius:20px;color:#475569!important}
+.settings-save-footer{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-top:20px;padding:18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px}
+.settings-save-footer p{margin:0;color:#64748b;font-size:13px;line-height:1.6}
+.settings-save-footer button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px}
+.admin-settings-polish form{min-width:0}
+.admin-settings-polish p{overflow-wrap:anywhere}
+@media(max-width:640px){
+.admin-settings-polish>div{padding:12px!important;gap:16px!important}
+.admin-shell .admin-settings-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px!important;padding:6px!important}
+.admin-shell .admin-settings-tabs button{font-size:12px!important;gap:6px!important;padding:10px 7px!important}
+.admin-settings-tabs button>span:first-child{flex-shrink:0}
+.admin-settings-tabs button>span:last-child:not(:nth-child(2)){display:none}
+.settings-section-intro{padding:14px;align-items:flex-start;flex-direction:column;gap:12px}
+.settings-save-footer{padding:14px}
+.settings-save-footer button{width:100%}
+.admin-settings-polish form [data-admin-ui=panel]{padding:14px!important}
+.admin-settings-polish form [data-admin-ui=toolbar]{gap:10px!important}
+.admin-settings-polish form [data-admin-ui=toolbar]>label,.admin-settings-polish form [data-admin-ui=toolbar]>button{flex:1 1 100%;min-width:0;max-width:100%}
+.admin-settings-polish form [data-admin-ui=toolbar]>label{display:flex;flex-direction:column;gap:6px}
+.admin-settings-polish form [data-admin-ui=toolbar] input{width:100%;min-width:0}
+}
+@media(max-width:640px){
+.admin-settings-polish form [data-admin-ui=grid]{grid-template-columns:minmax(0,1fr)!important}
+.admin-settings-polish form [data-admin-ui=grid]>div{min-width:0}
+.admin-settings-polish form h3,.admin-settings-polish form h4{flex-wrap:wrap}
+.admin-settings-polish form button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+}
+@media(max-width:640px){
+.admin-settings-polish .settings-schedule-row>div:last-child{flex-wrap:wrap;min-width:0;width:100%;gap:12px!important}
+.admin-settings-polish .settings-schedule-row>div:last-child>div{width:100%;min-width:0}
+.admin-settings-polish .settings-schedule-row input[type=time]{width:calc((100% - 30px)/2)!important;min-width:0;flex:1}
+.admin-settings-polish .settings-schedule-row input[type=checkbox]{width:auto!important}
+}

@@ -1,4 +1,14 @@
 import { cache, saveRemote, onApiChange, createRemoteOrder, changeOrderStatus, catalogVersions, saveProductBundle } from './api';
+import {
+  INITIAL_SETTINGS,
+  INITIAL_CATEGORIES,
+  INITIAL_PRODUCTS,
+  INITIAL_NEIGHBORHOODS,
+  INITIAL_COUPONS,
+  INITIAL_OPTION_GROUPS,
+  INITIAL_PRODUCT_OPTIONS,
+  INITIAL_FLAVORS
+} from '../data/initialData';
 import type {
   StoreSettings,
   Category,
@@ -28,7 +38,9 @@ const STORAGE_KEYS = {
   ORDERS: 'alfa_orders',
   FLAVORS: 'alfa_flavors',
   BANNERS: 'alfa_banners',
-  CUSTOMERS: 'alfa_customers'
+  CUSTOMERS: 'alfa_customers',
+  SALES: 'alfa_sales',
+  CUSTOMER_PROFILES: 'alfa_customer_profiles'
 };
 
 type Listener = () => void;
@@ -37,7 +49,7 @@ export const subscribeToStorage = (listener: Listener) => onApiChange(listener);
 function getFromStorage<T>(key: string, fallback: T): T {
   return structuredClone(cache[key] ?? fallback);
 }
-function saveToStorage<T>(key: string, data: T): void { saveRemote(key, data); }
+function saveToStorage<T>(key: string, data: T): Promise<void> { return saveRemote(key, data); }
 
 export const StorageService = {
   // Settings
@@ -67,10 +79,10 @@ export const StorageService = {
       pause_message: stored.pause_message || 'Estamos temporariamente sem receber pedidos.'
     };
   },
-  updateSettings(settings: Partial<StoreSettings>): StoreSettings {
+  async updateSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {
     const current = this.getSettings();
     const updated = { ...current, ...settings };
-    saveToStorage(STORAGE_KEYS.SETTINGS, updated);
+    await saveToStorage(STORAGE_KEYS.SETTINGS, updated);
     return updated;
   },
 
@@ -79,12 +91,12 @@ export const StorageService = {
     return getFromStorage<Category[]>(STORAGE_KEYS.CATEGORIES, []);
   },
   saveCategories(categories: Category[]) {
-    saveToStorage(STORAGE_KEYS.CATEGORIES, categories);
+    return saveToStorage(STORAGE_KEYS.CATEGORIES, categories);
   },
   toggleCategory(id: string) {
     const list = this.getCategories();
     const updated = list.map(c => c.id === id ? { ...c, is_available: !c.is_available } : c);
-    this.saveCategories(updated);
+    return this.saveCategories(updated);
   },
   upsertCategory(category: Category) {
     const list = this.getCategories();
@@ -94,11 +106,11 @@ export const StorageService = {
     } else {
       list.push(category);
     }
-    this.saveCategories([...list]);
+    return this.saveCategories([...list]);
   },
   deleteCategory(id: string) {
     const list = this.getCategories().filter(c => c.id !== id);
-    this.saveCategories(list);
+    return this.saveCategories(list);
   },
 
   // Products
@@ -106,12 +118,12 @@ export const StorageService = {
     return getFromStorage<Product[]>(STORAGE_KEYS.PRODUCTS, []);
   },
   saveProducts(products: Product[]) {
-    saveToStorage(STORAGE_KEYS.PRODUCTS, products);
+    return saveToStorage(STORAGE_KEYS.PRODUCTS, products);
   },
   toggleProductAvailability(id: string) {
     const list = this.getProducts();
     const updated = list.map(p => p.id === id ? { ...p, available: !p.available } : p);
-    this.saveProducts(updated);
+    return this.saveProducts(updated);
   },
   upsertProduct(product: Product) {
     const list = this.getProducts();
@@ -121,7 +133,7 @@ export const StorageService = {
     } else {
       list.unshift({ ...product, created_at: new Date().toISOString() });
     }
-    this.saveProducts([...list]);
+    return this.saveProducts([...list]);
   },
   async duplicateProduct(id: string): Promise<Product | null> {
     const found=this.getProducts().find(p=>p.id===id);if(!found)return null;
@@ -136,15 +148,15 @@ export const StorageService = {
   deleteProduct(id: string) {
     // Soft delete preferencial
     const list = this.getProducts().map(p => p.id === id ? { ...p, is_archived: true, available: false } : p);
-    this.saveProducts(list);
+    return this.saveProducts(list);
   },
 
   // Flavors CRUD (Section 19)
   getFlavors(): Flavor[] {
-    return getFromStorage<Flavor[]>(STORAGE_KEYS.FLAVORS, []);
+    return getFromStorage<Flavor[]>(STORAGE_KEYS.FLAVORS, INITIAL_FLAVORS);
   },
   saveFlavors(flavors: Flavor[]) {
-    saveToStorage(STORAGE_KEYS.FLAVORS, flavors);
+    return saveToStorage(STORAGE_KEYS.FLAVORS, flavors);
   },
   upsertFlavor(flavor: Flavor) {
     const list = this.getFlavors();
@@ -154,16 +166,16 @@ export const StorageService = {
     } else {
       list.push({ ...flavor, created_at: new Date().toISOString() });
     }
-    this.saveFlavors([...list]);
+    return this.saveFlavors([...list]);
   },
   toggleFlavor(id: string) {
     const list = this.getFlavors();
     const updated = list.map(f => f.id === id ? { ...f, is_active: !f.is_active } : f);
-    this.saveFlavors(updated);
+    return this.saveFlavors(updated);
   },
   deleteFlavor(id: string) {
     const list = this.getFlavors().filter(f => f.id !== id);
-    this.saveFlavors(list);
+    return this.saveFlavors(list);
   },
 
   // Promo Banners CRUD (Section 21)
@@ -171,7 +183,7 @@ export const StorageService = {
     return getFromStorage<PromoBanner[]>(STORAGE_KEYS.BANNERS, []);
   },
   saveBanners(banners: PromoBanner[]) {
-    saveToStorage(STORAGE_KEYS.BANNERS, banners);
+    return saveToStorage(STORAGE_KEYS.BANNERS, banners);
   },
   upsertBanner(banner: PromoBanner) {
     const list = this.getBanners();
@@ -181,30 +193,30 @@ export const StorageService = {
     } else {
       list.push({ ...banner, created_at: new Date().toISOString() });
     }
-    this.saveBanners([...list]);
+    return this.saveBanners([...list]);
   },
   toggleBanner(id: string) {
     const list = this.getBanners();
     const updated = list.map(b => b.id === id ? { ...b, is_active: !b.is_active } : b);
-    this.saveBanners(updated);
+    return this.saveBanners(updated);
   },
   deleteBanner(id: string) {
     const list = this.getBanners().filter(b => b.id !== id);
-    this.saveBanners(list);
+    return this.saveBanners(list);
   },
 
   // Option Groups & Options
   getOptionGroups(): ProductOptionGroup[] {
-    return getFromStorage<ProductOptionGroup[]>(STORAGE_KEYS.OPTION_GROUPS, []);
+    return getFromStorage<ProductOptionGroup[]>(STORAGE_KEYS.OPTION_GROUPS, INITIAL_OPTION_GROUPS);
   },
   saveOptionGroups(groups: ProductOptionGroup[]) {
-    saveToStorage(STORAGE_KEYS.OPTION_GROUPS, groups);
+    return saveToStorage(STORAGE_KEYS.OPTION_GROUPS, groups);
   },
   getProductOptions(): ProductOption[] {
-    return getFromStorage<ProductOption[]>(STORAGE_KEYS.PRODUCT_OPTIONS, []);
+    return getFromStorage<ProductOption[]>(STORAGE_KEYS.PRODUCT_OPTIONS, INITIAL_PRODUCT_OPTIONS);
   },
   saveProductOptions(options: ProductOption[]) {
-    saveToStorage(STORAGE_KEYS.PRODUCT_OPTIONS, options);
+    return saveToStorage(STORAGE_KEYS.PRODUCT_OPTIONS, options);
   },
   getProductOptionGroups(productId: string): ProductOptionGroup[] {
     return this.getOptionGroups().filter(g => g.product_id === productId && g.is_active !== false);
@@ -212,7 +224,22 @@ export const StorageService = {
   getOptionsByGroupId(groupId: string): ProductOption[] {
     return this.getProductOptions().filter(o => o.group_id === groupId && (o.is_available ?? true) && (o.is_active ?? true));
   },
-  saveProductAdditionals(productId: string, groupsWithItems: { group: ProductOptionGroup; options: ProductOption[] }[]) {
+  togglePauseIngredient(ingredientName: string, pause: boolean) {
+    const options = this.getProductOptions();
+    const targetName = ingredientName.trim().toLowerCase();
+    const updated = options.map(o => {
+      if ((o.name || '').trim().toLowerCase() === targetName) {
+        return {
+          ...o,
+          is_paused: pause,
+          is_available: !pause
+        };
+      }
+      return o;
+    });
+    return this.saveProductOptions(updated);
+  },
+    saveProductAdditionals(productId: string, groupsWithItems: { group: ProductOptionGroup; options: ProductOption[] }[]) {
     // Remove existing groups for this product and their options
     const currentGroups = this.getOptionGroups();
     const existingGroupIds = currentGroups.filter(g => g.product_id === productId).map(g => g.id);
@@ -232,8 +259,7 @@ export const StorageService = {
       });
     });
 
-    this.saveOptionGroups([...updatedGroups, ...newGroupsToAdd]);
-    this.saveProductOptions([...updatedOptions, ...newOptionsToAdd]);
+    return Promise.all([this.saveOptionGroups([...updatedGroups, ...newGroupsToAdd]), this.saveProductOptions([...updatedOptions, ...newOptionsToAdd])]);
   },
   getComboItems(): ComboItem[] {
     return getFromStorage<ComboItem[]>(STORAGE_KEYS.COMBO_ITEMS, []);
@@ -244,7 +270,7 @@ export const StorageService = {
     return getFromStorage<Neighborhood[]>(STORAGE_KEYS.NEIGHBORHOODS, []);
   },
   saveNeighborhoods(list: Neighborhood[]) {
-    saveToStorage(STORAGE_KEYS.NEIGHBORHOODS, list);
+    return saveToStorage(STORAGE_KEYS.NEIGHBORHOODS, list);
   },
   upsertNeighborhood(item: Neighborhood) {
     const list = this.getNeighborhoods();
@@ -254,11 +280,11 @@ export const StorageService = {
     } else {
       list.push(item);
     }
-    this.saveNeighborhoods([...list]);
+    return this.saveNeighborhoods([...list]);
   },
   deleteNeighborhood(id: string) {
     const list = this.getNeighborhoods().filter(n => n.id !== id);
-    this.saveNeighborhoods(list);
+    return this.saveNeighborhoods(list);
   },
 
   // Coupons
@@ -266,7 +292,7 @@ export const StorageService = {
     return getFromStorage<DiscountCoupon[]>(STORAGE_KEYS.COUPONS, []);
   },
   saveCoupons(list: DiscountCoupon[]) {
-    saveToStorage(STORAGE_KEYS.COUPONS, list);
+    return saveToStorage(STORAGE_KEYS.COUPONS, list);
   },
   upsertCoupon(coupon: DiscountCoupon) {
     const list = this.getCoupons();
@@ -276,11 +302,11 @@ export const StorageService = {
     } else {
       list.push(coupon);
     }
-    this.saveCoupons([...list]);
+    return this.saveCoupons([...list]);
   },
   deleteCoupon(id: string) {
     const list = this.getCoupons().filter(c => c.id !== id);
-    this.saveCoupons(list);
+    return this.saveCoupons(list);
   },
   getCouponUsageStats(couponCode: string) {
     const orders = this.getOrders();
@@ -310,7 +336,7 @@ export const StorageService = {
     return getFromStorage<Customer[]>(STORAGE_KEYS.CUSTOMERS, []);
   },
   saveCustomers(customers: Customer[]) {
-    saveToStorage(STORAGE_KEYS.CUSTOMERS, customers);
+    return saveToStorage(STORAGE_KEYS.CUSTOMERS, customers);
   },
   recordCustomerOrder(customerData: {
     name: string;
@@ -363,15 +389,21 @@ export const StorageService = {
       });
     }
 
-    this.saveCustomers(customers);
+    return this.saveCustomers(customers);
   },
+
+  // Vendas avulsas e contas a receber (separadas dos pedidos do cardápio)
+  getSales(): any[] { return getFromStorage<any[]>(STORAGE_KEYS.SALES, []); },
+  saveSales(sales: any[]) { return saveToStorage(STORAGE_KEYS.SALES, sales); },
+  getCustomerProfiles(): any[] { return getFromStorage<any[]>(STORAGE_KEYS.CUSTOMER_PROFILES, []); },
+  saveCustomerProfiles(customers: any[]) { return saveToStorage(STORAGE_KEYS.CUSTOMER_PROFILES, customers); },
 
   // Orders
   getOrders(): Order[] {
     return getFromStorage<Order[]>(STORAGE_KEYS.ORDERS, []);
   },
   saveOrders(list: Order[]) {
-    saveToStorage(STORAGE_KEYS.ORDERS, list);
+    return saveToStorage(STORAGE_KEYS.ORDERS, list);
   },
   createOrder(order: any, idempotencyKey: string): Promise<Order> {
     return createRemoteOrder(order, idempotencyKey);

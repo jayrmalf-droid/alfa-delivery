@@ -1,0 +1,39 @@
+.catalog-agenda-filters{display:flex;align-items:end;gap:14px;flex-wrap:wrap;padding:18px;background:#fff;border:1px solid #e2e8f0;border-radius:14px}
+.catalog-agenda-filters label{display:flex;flex:1 1 240px;flex-direction:column;gap:7px;font-size:13px;font-weight:700;color:#475569;min-width:0}
+.catalog-agenda-filters input{width:100%;min-width:0;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#0f172a}
+.catalog-agenda-filters [role=group]{display:flex;gap:5px;flex-wrap:wrap}
+.catalog-agenda-filters button{padding:10px 14px;border-radius:9px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;font-weight:700;cursor:pointer;min-height:42px}
+.catalog-agenda-filters button[aria-pressed=true]{background:#0f766e;color:#fff;border-color:#0f766e}
+.catalog-agenda-filters p{flex-basis:100%;font-size:12px;color:#64748b;margin:0}
+.admin-categories-polish :focus-visible,.admin-schedule-polish :focus-visible{outline:3px solid #0d9488;outline-offset:3px}
+.admin-categories-polish input{min-width:0}
+.catalog-empty{text-align:center;padding:28px!important;color:#64748b}
+.catalog-empty strong{color:#334155}
+.catalog-empty p{margin:8px 0 14px}
+.schedule-order-card{border:1px solid #e2e8f0;border-radius:16px;min-width:0;transition:box-shadow .15s,border-color .15s}
+.schedule-order-card:hover{border-color:#94a3b8;box-shadow:0 5px 18px #0f172a12}
+.schedule-order-card>div:first-child{flex-wrap:wrap;gap:10px}
+.schedule-order-card h4,.schedule-order-card p{overflow-wrap:anywhere;line-height:1.5}
+.schedule-range{font-size:12px;color:#64748b;margin:0;line-height:1.6}
+@media(max-width:640px){
+.admin-categories-polish>div,.admin-schedule-polish{padding:12px!important;gap:16px!important}
+.catalog-agenda-filters{padding:14px;gap:12px}
+.catalog-agenda-filters [role=group]{width:100%}
+.catalog-agenda-filters [role=group] button{flex:1;padding:10px 7px}
+.admin-categories-polish form{flex-wrap:wrap}
+.admin-categories-polish form input,.admin-categories-polish form button{width:100%;min-width:0}
+.categories-list [data-admin-ui=table-scroll]{overflow:visible!important}
+.categories-list table{display:block;min-width:0!important}
+.categories-list thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.categories-list tbody{display:grid;gap:12px;padding:12px}
+.categories-list tr{display:block;border:1px solid #e2e8f0;border-radius:12px;padding:8px}
+.categories-list td{display:grid;grid-template-columns:85px minmax(0,1fr);gap:10px;padding:10px 4px!important;text-align:left!important;overflow-wrap:anywhere}
+.categories-list td[data-label]::before{content:attr(data-label);color:#64748b;font-size:12px;font-weight:600}
+.categories-list td[data-label=Categoria]>div{flex-wrap:wrap;min-width:0}
+.categories-list td input{width:100%!important;min-width:0}
+.categories-list td[data-label=Ações]>div{justify-content:flex-start!important}
+.categories-list td[colspan]{display:block}
+.categories-list td button{min-height:40px;min-width:40px}
+.admin-schedule-polish .schedule-periods{width:100%;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))}
+.admin-schedule-polish .schedule-periods button{padding:10px 6px!important}
+}

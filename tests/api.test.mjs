@@ -115,3 +115,11 @@ test('venda durante a edição impede salvar estoque antigo e preserva reserva',
  const after=(await request('/api/bootstrap','GET',undefined,true)).data;assert.equal(after.data.alfa_products.find(p=>p.id==='bundle-product').stock_quantity,1);
  assert.equal(after.versions.alfa_option_groups,b.versions.alfa_option_groups);
 });
+
+
+test('registros de venda fiado são inicializados em banco legado', async () => {
+  const b = (await request('/api/bootstrap', 'GET', undefined, true)).data;
+  assert.ok(Array.isArray(b.data.alfa_sales));
+  assert.ok(Array.isArray(b.data.alfa_customer_profiles));
+  assert.equal((await request('/api/data/alfa_sales', 'PUT', { value: b.data.alfa_sales, version: b.versions.alfa_sales }, true)).status, 200);
+});

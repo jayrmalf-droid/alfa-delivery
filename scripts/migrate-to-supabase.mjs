@@ -124,28 +124,35 @@ if (isDryRun) {
 
 // 5. Execução Real no PostgreSQL
 console.log('\n[4/4] EXECUTANDO GRAVAÇÃO NO DESTINO POSTGRESQL...');
+const cleanPgUrl = pgUrl.replace(/[?&]sslmode=[^&]+/i, '').replace(/\?$/, '');
 const poolConfig = {
-  connectionString: pgUrl,
+  connectionString: cleanPgUrl,
   max: 5,
-  connectionTimeoutMillis: 10000
+  connectionTimeoutMillis: 15000,
+  ssl: { rejectUnauthorized: false }
 };
-if (process.env.NODE_ENV === 'production' || /supabase\.co|\.cloud|sslmode=require/i.test(pgUrl)) {
-  poolConfig.ssl = { rejectUnauthorized: false };
-}
 
 const pool = new pg.Pool(poolConfig);
 const client = await pool.connect();
 
-try {
-  await client.query('BEGIN');
-
-  // Executar criação das tabelas base
+  // Executar criação das tabelas base (se ainda não existirem)
   const schemaSqlPath = path.resolve('server/migrations/001_initial_schema.sql');
   if (fs.existsSync(schemaSqlPath)) {
-    const schemaSql = fs.readFileSync(schemaSqlPath, 'utf8');
-    await client.query(schemaSql);
-    console.log('  ✓ Esquema de tabelas e políticas RLS aplicado com sucesso.');
+    try {
+      const schemaSql = fs.readFileSync(schemaSqlPath, 'utf8');
+      await client.query(schemaSql);
+      console.log('  ✓ Esquema de tabelas e políticas RLS aplicado com sucesso.');
+    } catch (schemaErr) {
+      if (/already exists/i.test(schemaErr.message)) {
+        console.log('  ✓ Esquema base e tabelas já existentes no Supabase.');
+      } else {
+        throw schemaErr;
+      }
+    }
   }
+
+  try {
+    await client.query('BEGIN');
 
   // Migrar records com controle de versão
   for (const r of records) {

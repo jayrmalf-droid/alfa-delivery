@@ -1,3 +1,7 @@
+import { businessDate } from '../../domain/businessDates';
+import { useDialog } from '../../utils/useDialog';
+import { useConfirmedSave } from '../../utils/useConfirmedSave';
+import { parseMoneyInput, parseOptionalMoneyInput } from '../../domain/adminInput';
 import React, { useState, useMemo } from 'react';
 import { DiscountCoupon, Order } from '../../types';
 import { StorageService, subscribeToStorage } from '../../services/storageService';
@@ -31,6 +35,7 @@ interface CouponsTabProps {
 }
 
 export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) => {
+  const { saving, saveError, runSave } = useConfirmedSave();
   // Live coupons state
   const [coupons, setCoupons] = useState<DiscountCoupon[]>(() => {
     return propCoupons && propCoupons.length > 0 ? propCoupons : StorageService.getCoupons();
@@ -65,6 +70,8 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
   const [formMaxUses, setFormMaxUses] = useState('50');
   const [formExpiresAt, setFormExpiresAt] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
+  const [formPublic, setFormPublic] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // Modal State for Usage Details (Acompanhar uso do cupom)
   const [viewingCouponStats, setViewingCouponStats] = useState<DiscountCoupon | null>(null);
@@ -144,7 +151,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
     setFormUsageRule('unlimited');
     setFormMaxUses('50');
     setFormExpiresAt('');
-    setFormIsActive(true);
+    setFormIsActive(true); setFormPublic(false); setFormError('');
     setIsFormModalOpen(true);
   };
 
@@ -175,8 +182,8 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
       setFormUsageRule('unlimited');
     }
 
-    setFormExpiresAt(c.expires_at ? c.expires_at.split('T')[0] : '');
-    setFormIsActive(c.is_active);
+    setFormExpiresAt(c.expires_at ? (/T00:00:00(?:\.000)?Z$/.test(c.expires_at) ? c.expires_at.split('T')[0] : businessDate(c.expires_at)) : '');
+    setFormIsActive(c.is_active); setFormPublic(c.show_in_menu === true); setFormError('');
     setIsFormModalOpen(true);
   };
 
@@ -189,13 +196,15 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
   };
 
   // Save Coupon (Create or Update)
-  const handleSaveCoupon = (e: React.FormEvent) => {
+  const handleSaveCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formCode.trim()) return;
 
     const cleanCode = formCode.trim().toUpperCase().replace(/\s+/g, '');
-    const numVal = parseFloat(formValue.replace(',', '.')) || 0;
-    const minOrderVal = parseFloat(formMinOrder.replace(',', '.')) || 0;
+    const numVal = formType === 'shipping' ? 0 : parseMoneyInput(formValue);
+    const minOrderVal = parseOptionalMoneyInput(formMinOrder);
+    if(numVal === null || minOrderVal === null || (formType === 'percentage' && (numVal <= 0 || numVal > 100)) || (formType === 'fixed' && numVal <= 0)) { setFormError('Informe valores válidos. O percentual deve ficar entre 0 e 100.'); return; }
+    setFormError('');
 
     const payload: DiscountCoupon = {
       id: editingCoupon ? editingCoupon.id : `cup_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`,
@@ -208,31 +217,32 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
       free_shipping: formType === 'shipping',
       min_order_value: minOrderVal,
       is_active: formIsActive,
+      show_in_menu: formPublic,
       is_single_use: formUsageRule === 'single_global',
       single_use_per_client: formUsageRule === 'single_per_client',
       max_uses: formUsageRule === 'max_limit' ? parseInt(formMaxUses) || 50 : (formUsageRule === 'single_global' ? 1 : null),
       current_uses: editingCoupon ? (editingCoupon.current_uses || 0) : 0,
-      expires_at: formExpiresAt ? new Date(formExpiresAt).toISOString() : null,
+      expires_at: formExpiresAt ? new Date(`${formExpiresAt}T23:59:59.999-03:00`).toISOString() : null,
       created_at: editingCoupon?.created_at || new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
-    StorageService.upsertCoupon(payload);
+    if (!await runSave(() => StorageService.upsertCoupon(payload))) return;
     setCoupons(StorageService.getCoupons());
     setIsFormModalOpen(false);
   };
 
   // Toggle Active/Paused Status
-  const handleToggleStatus = (c: DiscountCoupon) => {
+  const handleToggleStatus = async (c: DiscountCoupon) => {
     const updated: DiscountCoupon = { ...c, is_active: !c.is_active, updated_at: new Date().toISOString() };
-    StorageService.upsertCoupon(updated);
+    if (!await runSave(() => StorageService.upsertCoupon(updated))) return;
     setCoupons(StorageService.getCoupons());
   };
 
   // Delete Coupon
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingCoupon) return;
-    StorageService.deleteCoupon(deletingCoupon.id);
+    if (!await runSave(() => StorageService.deleteCoupon(deletingCoupon.id))) return;
     setCoupons(StorageService.getCoupons());
     setDeletingCoupon(null);
   };
@@ -244,10 +254,15 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
+  useDialog(isFormModalOpen || !!viewingCouponStats || !!deletingCoupon, () => { if (saving) return; setIsFormModalOpen(false); setViewingCouponStats(null); setDeletingCoupon(null); });
+
   return (
-    <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <fieldset disabled={saving} aria-busy={saving} className="confirmed-save-fields admin-coupons-polish">
+      {saveError && <p role="alert" className="confirmed-save-error">{saveError}</p>}
+      {saving && <p role="status">Aguardando confirmação de gravação…</p>}
+    <div className="campaign-workspace" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Top Banner & Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+      <div className="admin-section-heading campaign-heading" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }} data-admin-ui="toolbar">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div
@@ -265,8 +280,9 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               <Ticket size={22} />
             </div>
             <div>
+              <span className="admin-section-eyebrow">PROMOÇÕES DA LOJA</span>
               <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                Cupons & Descontos
+                Cupons e descontos
               </h2>
               <p style={{ fontSize: '0.86rem', color: '#64748b', margin: '2px 0 0' }}>
                 Crie códigos promocionais, monitore as vendas geradas e acompanhe os clientes que utilizaram.
@@ -287,14 +303,14 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             fontWeight: 800,
             boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
           }}
-        >
+         data-admin-ui="button">
           <Plus size={18} />
           <span>Criar Novo Cupom</span>
         </button>
       </div>
 
       {/* KPI Performance Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+      <div className="campaign-metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }} data-admin-ui="grid">
         <div
           style={{
             backgroundColor: '#ffffff',
@@ -306,7 +322,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             flexDirection: 'column',
             gap: 6
           }}
-        >
+         data-admin-ui="panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
               Cupons Ativos
@@ -345,7 +361,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             flexDirection: 'column',
             gap: 6
           }}
-        >
+         data-admin-ui="panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
               Vendas com Cupom
@@ -384,7 +400,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             flexDirection: 'column',
             gap: 6
           }}
-        >
+         data-admin-ui="panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
               Faturamento Gerado
@@ -423,7 +439,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             flexDirection: 'column',
             gap: 6
           }}
-        >
+         data-admin-ui="panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
               Desconto Concedido
@@ -453,23 +469,24 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
       </div>
 
       {/* Filter and Search Bar */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ position: 'relative', flexGrow: 1, minWidth: 260, maxWidth: 440 }}>
+      <div className="campaign-filterbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }} data-admin-ui="toolbar">
+        <div style={{ position: 'relative', flexGrow: 1, minWidth: 0, width: '100%', maxWidth: 440 }}>
           <input
             type="text"
-            placeholder="Buscar por código ou descrição..."
+            data-admin-field-icon="true" aria-label="Buscar cupons por código ou descrição" placeholder="Buscar por código ou descrição..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="form-input"
             style={{ paddingLeft: 38, height: 42, borderRadius: 10, width: '100%' }}
-          />
+           data-admin-ui="field"/>
           <Search size={18} style={{ position: 'absolute', left: 12, top: 12, color: '#94a3b8' }} />
         </div>
 
         {/* Status Filter Pills */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="campaign-status-filters" role="group" aria-label="Situação dos cupons" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} data-admin-ui="toolbar">
           <button
             type="button"
+            aria-pressed={statusFilter === 'all'}
             onClick={() => setStatusFilter('all')}
             style={{
               padding: '8px 14px',
@@ -481,12 +498,13 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               fontSize: '0.82rem',
               cursor: 'pointer'
             }}
-          >
+           data-admin-ui="button">
             Todos ({coupons.length})
           </button>
 
           <button
             type="button"
+            aria-pressed={statusFilter === 'active'}
             onClick={() => setStatusFilter('active')}
             style={{
               padding: '8px 14px',
@@ -498,12 +516,13 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               fontSize: '0.82rem',
               cursor: 'pointer'
             }}
-          >
+           data-admin-ui="button">
             Ativos ({coupons.filter(c => c.is_active).length})
           </button>
 
           <button
             type="button"
+            aria-pressed={statusFilter === 'paused'}
             onClick={() => setStatusFilter('paused')}
             style={{
               padding: '8px 14px',
@@ -515,12 +534,13 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               fontSize: '0.82rem',
               cursor: 'pointer'
             }}
-          >
+           data-admin-ui="button">
             Pausados ({coupons.filter(c => !c.is_active).length})
           </button>
 
           <button
             type="button"
+            aria-pressed={statusFilter === 'expired'}
             onClick={() => setStatusFilter('expired')}
             style={{
               padding: '8px 14px',
@@ -532,12 +552,13 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               fontSize: '0.82rem',
               cursor: 'pointer'
             }}
-          >
+           data-admin-ui="button">
             Esgotados / Expirados
           </button>
         </div>
       </div>
 
+      <p className="campaign-results" role="status">{filteredCoupons.length} cupom(ns) encontrado(s)</p>
       {/* Coupons Modern Grid */}
       {filteredCoupons.length === 0 ? (
         <div
@@ -549,7 +570,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             textAlign: 'center',
             color: '#64748b'
           }}
-        >
+         data-admin-ui="panel">
           <Ticket size={48} style={{ color: '#cbd5e1', margin: '0 auto 12px' }} />
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
             Nenhum cupom encontrado
@@ -564,13 +585,13 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             onClick={handleOpenCreate}
             className="btn btn-primary"
             style={{ padding: '10px 22px', borderRadius: 10, fontWeight: 700 }}
-          >
+           data-admin-ui="button">
             <Plus size={16} />
             <span>Criar Primeiro Cupom</span>
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%,340px), 1fr))', gap: 20 }} data-admin-ui="grid">
           {filteredCoupons.map(coupon => {
             const stats = StorageService.getCouponUsageStats(coupon.code);
             const isPercentage = (coupon.discount_type || coupon.type) === 'percentage';
@@ -587,6 +608,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             return (
               <div
                 key={coupon.id}
+                className="admin-coupon-ticket"
                 style={{
                   backgroundColor: '#ffffff',
                   borderRadius: 18,
@@ -599,7 +621,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                   opacity: coupon.is_active ? 1 : 0.75,
                   transition: 'transform 0.15s ease, box-shadow 0.15s ease'
                 }}
-              >
+               data-admin-ui="panel">
                 {/* Top Ticket Header Bar with Status */}
                 <div
                   style={{
@@ -673,7 +695,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       backgroundColor: coupon.is_active ? '#dcfce7' : '#fee2e2',
                       color: coupon.is_active ? '#15803d' : '#b91c1c'
                     }}
-                  >
+                   data-admin-ui="button">
                     {coupon.is_active ? 'ATIVO' : 'PAUSADO'}
                   </button>
                 </div>
@@ -681,7 +703,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                 {/* Ticket Body */}
                 <div style={{ padding: '18px 20px', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {/* Code and Copy Button */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                  <div className="coupon-code-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                     <div
                       style={{
                         display: 'inline-flex',
@@ -716,7 +738,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                         gap: 4
                       }}
                       title="Copiar código do cupom"
-                    >
+                     data-admin-ui="button">
                       {copiedCode === coupon.code ? <Check size={14} /> : <Copy size={14} />}
                       <span>{copiedCode === coupon.code ? 'Copiado!' : 'Copiar'}</span>
                     </button>
@@ -820,7 +842,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                 </div>
 
                 {/* Ticket Bottom Actions Bar */}
-                <div
+                <div className="coupon-card-actions"
                   style={{
                     padding: '12px 18px',
                     borderTop: '1px solid #f1f5f9',
@@ -848,7 +870,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       alignItems: 'center',
                       gap: 6
                     }}
-                  >
+                   data-admin-ui="button">
                     <Eye size={14} style={{ color: '#2563eb' }} />
                     <span>Ver Pedidos ({stats.ordersCount})</span>
                   </button>
@@ -866,7 +888,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                         cursor: 'pointer'
                       }}
                       title="Alterar / Editar cupom"
-                    >
+                     aria-label="Alterar / Editar cupom" data-admin-ui="button">
                       <Edit2 size={15} />
                     </button>
 
@@ -882,7 +904,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                         cursor: 'pointer'
                       }}
                       title="Excluir cupom"
-                    >
+                     aria-label="Excluir cupom" data-admin-ui="button">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -909,7 +931,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             zIndex: 1000,
             padding: 16
           }}
-        >
+         data-admin-ui="overlay">
           <div
             style={{
               backgroundColor: '#ffffff',
@@ -922,7 +944,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               display: 'flex',
               flexDirection: 'column'
             }}
-          >
+           role="dialog" aria-modal="true" aria-label="Cupom — detalhes e edição" data-admin-ui="panel dialog">
             {/* Modal Header */}
             <div
               style={{
@@ -932,7 +954,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                 alignItems: 'center',
                 justifyContent: 'space-between'
               }}
-            >
+             data-admin-ui="dialog-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div
                   style={{
@@ -973,23 +995,23 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
-              >
+               aria-label="Fechar" data-admin-ui="button">
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveCoupon} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <form onSubmit={handleSaveCoupon} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }} data-admin-ui="form">
               {/* Code Input with Generator */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                   Código do Cupom *
                 </label>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="coupon-code-entry" style={{ display: 'flex', gap: 8 }}>
                   <input
                     type="text"
                     required
-                    placeholder="Ex: PROMO10, SALGADO15, FESTA20"
+                    aria-label="Código do cupom" placeholder="Ex: PROMO10, SALGADO15, FESTA20"
                     value={formCode}
                     onChange={e => setFormCode(e.target.value.toUpperCase())}
                     style={{
@@ -1005,7 +1027,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       outline: 'none',
                       backgroundColor: '#ffffff'
                     }}
-                  />
+                   data-admin-ui="field"/>
                   <button
                     type="button"
                     onClick={handleGenerateRandomCode}
@@ -1023,7 +1045,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       gap: 4
                     }}
                     title="Gerar código aleatório"
-                  >
+                   data-admin-ui="button">
                     <Sparkles size={14} />
                     <span>Gerar Código</span>
                   </button>
@@ -1049,7 +1071,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                     fontSize: '0.88rem',
                     outline: 'none'
                   }}
-                />
+                 data-admin-ui="field"/>
               </div>
 
               {/* Discount Type Selector */}
@@ -1057,7 +1079,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                 <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: 6 }}>
                   Tipo de Desconto *
                 </label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }} data-admin-ui="grid grid-fixed">
                   <button
                     type="button"
                     onClick={() => setFormType('percentage')}
@@ -1075,7 +1097,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       alignItems: 'center',
                       gap: 4
                     }}
-                  >
+                   data-admin-ui="button">
                     <Percent size={18} />
                     <span>Porcentagem (%)</span>
                   </button>
@@ -1097,7 +1119,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       alignItems: 'center',
                       gap: 4
                     }}
-                  >
+                   data-admin-ui="button">
                     <DollarSign size={18} />
                     <span>Valor Fixo (R$)</span>
                   </button>
@@ -1119,7 +1141,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       alignItems: 'center',
                       gap: 4
                     }}
-                  >
+                   data-admin-ui="button">
                     <ShoppingBag size={18} />
                     <span>Frete Grátis</span>
                   </button>
@@ -1127,7 +1149,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               </div>
 
               {/* Value and Min Order Inputs */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }} data-admin-ui="grid grid-fixed">
                 {formType !== 'shipping' && (
                   <div>
                     <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
@@ -1136,7 +1158,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                     <input
                       type="text"
                       required
-                      placeholder={formType === 'percentage' ? '10' : '15,00'}
+                      aria-label={formType === 'percentage' ? 'Porcentagem de desconto' : 'Valor do desconto'} placeholder={formType === 'percentage' ? '10' : '15,00'}
                       value={formValue}
                       onChange={e => setFormValue(e.target.value)}
                       style={{
@@ -1149,7 +1171,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                         fontWeight: 700,
                         outline: 'none'
                       }}
-                    />
+                     data-admin-ui="field"/>
                   </div>
                 )}
 
@@ -1171,7 +1193,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       fontSize: '0.95rem',
                       outline: 'none'
                     }}
-                  />
+                   data-admin-ui="field"/>
                   <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Deixe 0 ou em branco se não houver pedido mínimo</span>
                 </div>
               </div>
@@ -1192,7 +1214,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                   Regra de Utilização & Limite:
                 </label>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }} data-admin-ui="grid grid-fixed">
                   <label
                     style={{
                       display: 'flex',
@@ -1313,13 +1335,13 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                         fontSize: '0.9rem',
                         fontWeight: 700
                       }}
-                    />
+                     data-admin-ui="field"/>
                   </div>
                 )}
               </div>
 
               {/* Expiration Date & Active Switch */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, alignItems: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, alignItems: 'center' }} data-admin-ui="grid grid-fixed">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: 4 }}>
                     Data de Validade (Opcional)
@@ -1338,10 +1360,12 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                       outline: 'none',
                       backgroundColor: '#ffffff'
                     }}
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
-                <div
+                {formError && <p role="alert" style={{color:'#b91c1c'}}>{formError}</p>}
+                  <label className="coupon-public-choice"><input type="checkbox" checked={formPublic} onChange={e=>setFormPublic(e.target.checked)}/> Divulgar este cupom no cardápio digital <small>Somente cupons ativos, dentro da validade e com usos disponíveis aparecem. Não marque cupons privados.</small></label>
+                  <label
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1363,11 +1387,11 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                     onChange={e => setFormIsActive(e.target.checked)}
                     style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#dc2626' }}
                   />
-                </div>
+                </label>
               </div>
 
               {/* Modal Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, paddingTop: 12, borderTop: '1px solid #f1f5f9' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, paddingTop: 12, borderTop: '1px solid #f1f5f9' }} data-admin-ui="actions">
                 <button
                   type="button"
                   onClick={() => setIsFormModalOpen(false)}
@@ -1380,7 +1404,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                     color: '#64748b',
                     cursor: 'pointer'
                   }}
-                >
+                 data-admin-ui="button">
                   Cancelar
                 </button>
                 <button
@@ -1395,7 +1419,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                     cursor: 'pointer',
                     boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
                   }}
-                >
+                 data-admin-ui="button">
                   {editingCoupon ? 'Salvar Alterações' : 'Cadastrar Cupom'}
                 </button>
               </div>
@@ -1420,7 +1444,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             zIndex: 1050,
             padding: 16
           }}
-        >
+         data-admin-ui="overlay">
           <div
             style={{
               backgroundColor: '#ffffff',
@@ -1433,7 +1457,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               display: 'flex',
               flexDirection: 'column'
             }}
-          >
+           role="dialog" aria-modal="true" aria-label="Cupom — detalhes e edição" data-admin-ui="panel dialog">
             {/* Header */}
             <div
               style={{
@@ -1444,7 +1468,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                 justifyContent: 'space-between',
                 backgroundColor: '#ffffff'
               }}
-            >
+             data-admin-ui="dialog-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div
                   style={{
@@ -1485,7 +1509,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}
-              >
+               aria-label="Fechar" data-admin-ui="button">
                 <X size={18} />
               </button>
             </div>
@@ -1497,7 +1521,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               return (
                 <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
                   {/* Stats Highlights */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }} data-admin-ui="grid grid-fixed">
                     <div style={{ backgroundColor: '#f8fafc', padding: 14, borderRadius: 12, border: '1px solid #e2e8f0' }}>
                       <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
                         Utilizações
@@ -1561,7 +1585,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                         </p>
                       </div>
                     ) : (
-                      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 12 }}>
+                      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 12 }} tabIndex={0} role="region" aria-label="Tabela de Cupom — role para ver todas as colunas" data-admin-ui="table-scroll">
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                           <thead>
                             <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569' }}>
@@ -1643,7 +1667,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
             zIndex: 1100,
             padding: 16
           }}
-        >
+         data-admin-ui="overlay">
           <div
             style={{
               backgroundColor: '#ffffff',
@@ -1653,7 +1677,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
               padding: 24,
               boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)'
             }}
-          >
+           role="dialog" aria-modal="true" aria-label="Cupom — detalhes e edição" data-admin-ui="panel dialog">
             <h4 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: '0 0 8px' }}>
               Excluir Cupom "{deletingCoupon.code}"?
             </h4>
@@ -1674,7 +1698,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                   fontSize: '0.85rem',
                   cursor: 'pointer'
                 }}
-              >
+               data-admin-ui="button">
                 Cancelar
               </button>
               <button
@@ -1690,7 +1714,7 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
                   border: 'none',
                   cursor: 'pointer'
                 }}
-              >
+               data-admin-ui="button">
                 Sim, Excluir Cupom
               </button>
             </div>
@@ -1698,5 +1722,6 @@ export const CouponsTab: React.FC<CouponsTabProps> = ({ coupons: propCoupons }) 
         </div>
       )}
     </div>
+    </fieldset>
   );
 };

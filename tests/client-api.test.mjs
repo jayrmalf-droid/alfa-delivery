@@ -70,3 +70,56 @@ test('rastreio permanece disponível na sessão quando armazenamento do navegado
   assert.equal((await api.trackedOrder(order.id)).status, 'pending');
   assert.equal(await api.trackedOrder('unknown'), null);
 }));
+
+test('gravação só resolve após confirmação e propaga falha sem quebrar a fila', async () => harness(async api => {
+  let release;
+  let version = 1;
+  let products = [{ id: 'original' }];
+  let fail = false;
+  const events = [];
+  window.addEventListener('alfa-save', event => events.push(event.detail.status));
+  globalThis.fetch = async (url, options = {}) => {
+    if (options.method !== 'PUT') return response(bootstrap(products, version));
+    await new Promise(resolve => { release = resolve; });
+    if (fail) return response({ error: 'Falha simulada' }, 503);
+    products = JSON.parse(options.body).value;
+    return response({ version: ++version });
+  };
+  await api.refresh();
+  let done = false;
+  const first = api.saveRemote('alfa_products', [{ id: 'confirmed' }]).then(() => { done = true; });
+  await new Promise(setImmediate);
+  assert.equal(done, false);
+  assert.deepEqual(events, ['saving']);
+  release(); await first;
+  assert.equal(done, true);
+  assert.deepEqual(events, ['saving', 'saved']);
+  fail = true;
+  const second = api.saveRemote('alfa_products', [{ id: 'rejected' }]);
+  const rejected = assert.rejects(second, /Falha simulada/);
+  await new Promise(setImmediate); release(); await rejected;
+  assert.deepEqual(api.cache.alfa_products, [{ id: 'confirmed' }]);
+  fail = false;
+  const third = api.saveRemote('alfa_products', [{ id: 'next' }]);
+  await new Promise(setImmediate); release(); await third;
+  assert.deepEqual(api.cache.alfa_products, [{ id: 'next' }]);
+}));
+
+test('sem rede até para recarregar, o cache volta ao último dado confirmado', async () => harness(async api => {
+  globalThis.fetch = async () => response(bootstrap([{ id: 'persisted' }], 1));
+  await api.refresh();
+  globalThis.fetch = async () => { throw new Error('Sem conexão'); };
+  await assert.rejects(api.saveRemote('alfa_products', [{ id: 'draft' }]), /Sem conexão/);
+  assert.deepEqual(api.cache.alfa_products, [{ id: 'persisted' }]);
+}));
+
+test('promessas das gravações canceladas por conflito também rejeitam', async () => harness(async api => {
+  globalThis.fetch = async (url, options = {}) => options.method === 'PUT'
+    ? response({ error: 'Conflito' }, 409) : response(bootstrap([], 1));
+  await api.refresh();
+  const first = api.saveRemote('alfa_products', [{ id: 'first' }]);
+  const second = api.saveRemote('alfa_products', [{ id: 'second' }]);
+  const results = await Promise.allSettled([first, second]);
+  assert.deepEqual(results.map(r => r.status), ['rejected', 'rejected']);
+  assert.match(results[1].reason.message, /alteração anterior/);
+}));

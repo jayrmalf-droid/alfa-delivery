@@ -24,6 +24,15 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ order, settings,
   const widthPx = paperWidth === '58mm' ? 230 : 310;
   const formattedDate = new Date(order.created_at || Date.now()).toLocaleString('pt-BR');
 
+  const isScheduled = Boolean(order.preorder_date || order.is_scheduled);
+  const scheduledDate = order.preorder_date
+    ? (order.preorder_date.includes('-') ? order.preorder_date.split('T')[0].split('-').reverse().join('/') : order.preorder_date)
+    : '';
+  const scheduledTime = order.preorder_time || 'Horário não informado';
+  const orderCreatedFormatted = order.created_at
+    ? new Date(order.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : formattedDate;
+
   const handlePrint = () => {
     printThermalReceipt(order, settings, paperWidth, includeLogo);
   };
@@ -276,14 +285,46 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ order, settings,
 
             <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
-            {/* Order Info */}
-            <div style={{ textAlign: 'center', fontSize: 16, fontWeight: 'bold' }}>
+            {/* Order Info & Scheduling Block */}
+            <div style={{ textAlign: 'center', fontSize: 15, fontWeight: 'bold', letterSpacing: 0.5 }}>
               PEDIDO #{order.order_number}
             </div>
-            <div style={{ textAlign: 'center', fontSize: 10, marginTop: 2 }}>{formattedDate}</div>
-            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 11, marginTop: 4 }}>
-              {order.delivery_type === 'delivery' ? '*** ENTREGA EM DOMICÍLIO ***' : '*** RETIRADA NO BALCÃO ***'}
-            </div>
+
+            {isScheduled ? (
+              <div style={{
+                border: '2px solid #000',
+                padding: '6px 4px',
+                margin: '6px 0',
+                textAlign: 'center',
+                backgroundColor: '#f8fafc'
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: 0.5 }}>
+                  *** PEDIDO AGENDADO ***
+                </div>
+                <div style={{ fontSize: 10, marginTop: 3 }}>
+                  <strong>Pedido feito em:</strong> {orderCreatedFormatted}
+                </div>
+                <div style={{ borderTop: '1px dashed #000', margin: '5px 0' }} />
+                <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
+                  {order.delivery_type === 'delivery' ? '📅 ENTREGA AGENDADA PARA:' : '📅 RETIRADA AGENDADA PARA:'}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 900, marginTop: 2 }}>
+                  Data: {scheduledDate}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 900 }}>
+                  Horário: {scheduledTime}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ textAlign: 'center', fontSize: 10, marginTop: 2 }}>
+                  Data: {orderCreatedFormatted}
+                </div>
+                <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 11, marginTop: 4 }}>
+                  {order.delivery_type === 'delivery' ? '*** ENTREGA EM DOMICÍLIO ***' : '*** RETIRADA NO BALCÃO ***'}
+                </div>
+              </>
+            )}
 
             <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
@@ -301,57 +342,57 @@ export const ThermalReceipt: React.FC<ThermalReceiptProps> = ({ order, settings,
 
             <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
-            {/* Items */}
-            <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 4 }}>ITENS DO PEDIDO:</div>
-            {order.items?.map((item, idx) => (
-              <div key={idx} style={{ marginBottom: showItemSeparator ? 4 : 6 }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontWeight: isItemsBold ? 800 : 600,
-                  fontSize: isItemsBold ? (paperWidth === '58mm' ? 12 : 13) : undefined
-                }}>
-                  <span>{item.quantity}x {item.product_name}</span>
-                  <span>{formatCurrency(item.subtotal)}</span>
-                </div>
-                {item.selections && item.selections.length > 0 && (
+            {/* Items com formatação operacional padronizada */}
+            <div style={{ fontWeight: 'bold', fontSize: 10, marginBottom: 4 }}>ITENS DO PEDIDO:</div>
+            {order.items?.map((item, idx) => {
+              const obs = item.observation || item.notes;
+              const bullet = highlightFlavors ? '▶ ' : '+ ';
+              return (
+                <div key={idx} style={{ marginBottom: showItemSeparator ? 6 : 4, fontSize: paperWidth === '58mm' ? 11 : 12 }}>
                   <div style={{
-                    paddingLeft: highlightFlavors ? 8 : 6,
-                    fontSize: paperWidth === '58mm' ? 10 : 11,
-                    color: '#000',
-                    marginTop: 2
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontWeight: isItemsBold ? 800 : 600
                   }}>
-                    {item.selections.map((sel, sidx) => (
-                      <div key={sidx} style={{ fontWeight: highlightFlavors ? 600 : 'normal' }}>
-                        {highlightFlavors ? '▶ ' : '+ '}{sel.optionName}
-                      </div>
-                    ))}
+                    <span>{item.quantity}x {item.product_name}</span>
+                    <span>{formatCurrency(item.subtotal)}</span>
                   </div>
-                )}
-                {item.notes && (
-                  highlightNotes ? (
-                    <div style={{
-                      marginTop: 3,
-                      padding: '2px 4px',
-                      border: '1px solid #000',
-                      borderRadius: 2,
-                      fontSize: 10,
-                      fontWeight: 'bold',
-                      background: '#eee'
-                    }}>
-                      OBS: {item.notes}
+
+                  {/* Addons do Snapshot Histórico congelado ou selections */}
+                  {item.addons && item.addons.length > 0 ? (
+                    item.addons.map((addon: any, aidx: number) => (
+                      <div key={aidx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12, fontSize: '0.9em' }}>
+                        <span>{bullet}{addon.quantidade}x {addon.nome_historico}</span>
+                        <span>{addon.subtotal > 0 ? formatCurrency(addon.subtotal) : 'GRÁTIS'}</span>
+                      </div>
+                    ))
+                  ) : item.selections && item.selections.length > 0 ? (
+                    item.selections.map((sel, sidx) => {
+                      const isPoint = /ponto|carne|cozimento/i.test(sel.groupName || '');
+                      return (
+                        <div key={sidx} style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: 12, fontSize: '0.9em' }}>
+                          <span>{isPoint ? `[PONTO]: ${sel.optionName}` : `${bullet}${sel.quantity ? sel.quantity + 'x ' : ''}${sel.optionName}`}</span>
+                          {sel.price && sel.price > 0 ? <span>{formatCurrency(sel.price)}</span> : null}
+                        </div>
+                      );
+                    })
+                  ) : null}
+
+                  {obs && (
+                    <div style={{ marginTop: 2 }}>
+                      <div style={{ fontSize: '0.85em', color: '#555', paddingLeft: 12 }}>-----------------------------</div>
+                      <div style={{ fontWeight: 800, paddingLeft: 12, color: '#000' }}>
+                        &gt;&gt; OBS: {obs.toUpperCase()} &lt;&lt;
+                      </div>
                     </div>
-                  ) : (
-                    <div style={{ paddingLeft: 6, fontSize: 10, fontStyle: 'italic' }}>
-                      Obs: {item.notes}
-                    </div>
-                  )
-                )}
-                {showItemSeparator && idx < (order.items?.length || 0) - 1 && (
-                  <div style={{ borderTop: '1px dotted #888', margin: '4px 0' }} />
-                )}
-              </div>
-            ))}
+                  )}
+
+                  {showItemSeparator && idx < (order.items?.length || 0) - 1 && (
+                    <div style={{ borderTop: '1px dotted #888', margin: '4px 0' }} />
+                  )}
+                </div>
+              );
+            })}
 
             <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 

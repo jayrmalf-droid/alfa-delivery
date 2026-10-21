@@ -1,3 +1,43 @@
+import './shopping-design.css';
+import './catalog-design.css';
+import { sortCatalog, type CatalogSort } from './domain/catalogBrowse';
+import './catalog-sorting.css';
+import './product-availability.css';
+import './selection-guidance.css';
+import './product-editor-usability.css';
+import './catalog-filter-tools.css';
+import './order-filter-chips.css';
+import './navigation-shortcuts.css';
+import './ledger-search.css';
+import './system-feedback.css';
+import './financial-inputs.css';
+import './system-tracking.css';
+import './system-usability.css';
+import { normalizeAdminSearch } from './domain/adminInput';
+import './components/admin/admin-orders-workspace.css';
+import './components/admin/admin-dashboard-overview.css';
+import './components/admin/admin-catalog-agenda.css';
+import './components/admin/admin-settings.css';
+import './components/admin/admin-finance.css';
+import './components/admin/admin-layout.css';
+import './components/admin/admin-modern.css';
+import './components/admin/admin-usability.css';
+import './components/admin/admin-workspaces.css';
+import './components/admin/admin-campaigns.css';
+import './components/client/storefront-modern.css';
+import './storefront-refresh.css';
+import './artisan-premium.css';
+import './admin-premium.css';
+import './theme-contrast.css';
+import './theme-preview.css';
+import './growth-workspace.css';
+import './catalog-layout.css';
+import { CatalogBenefits } from './components/client/CatalogBenefits';
+import { CatalogSpotlight } from './components/client/CatalogSpotlight';
+import { LiveSync } from './components/LiveSync';
+import { cache } from './services/api';
+import { AdminWorkspaceTools } from './components/admin/AdminWorkspaceTools';
+import { ADMIN_PAGES } from './components/admin/adminPages';
 import { apiState, refresh, logout, trackedOrder } from './services/api';
 import { normalizePhone } from './domain/rules';
 import { ConnectionNotice } from './components/ConnectionNotice';
@@ -19,11 +59,12 @@ import { Header } from './components/client/Header';
 import { HeroSection } from './components/client/HeroSection';
 import { CategoryBar } from './components/client/CategoryBar';
 import { ProductCard } from './components/client/ProductCard';
-import { ProductDetailModal } from './components/client/ProductDetailModal';
+const ProductDetailModal = lazy(() => import('./components/client/ProductDetailModal').then(module => ({ default: module.ProductDetailModal })));
 import { CartDrawer } from './components/client/CartDrawer';
-import { CheckoutModal } from './components/client/CheckoutModal';
-import { OrderTracker } from './components/client/OrderTracker';
+const CheckoutModal = lazy(() => import('./components/client/CheckoutModal').then(module => ({ default: module.CheckoutModal })));
+const OrderTracker = lazy(() => import('./components/client/OrderTracker').then(module => ({ default: module.OrderTracker })));
 import { MobileBottomNav } from './components/client/MobileBottomNav';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 // Admin Components
 import { AdminSidebar, AdminTab } from './components/admin/AdminSidebar';
@@ -37,10 +78,13 @@ const BannersTab = lazy(() => import('./components/admin/BannersTab').then(modul
 const NeighborhoodsTab = lazy(() => import('./components/admin/NeighborhoodsTab').then(module => ({ default: module.NeighborhoodsTab })));
 const CouponsTab = lazy(() => import('./components/admin/CouponsTab').then(module => ({ default: module.CouponsTab })));
 const CustomersTab = lazy(() => import('./components/admin/CustomersTab').then(module => ({ default: module.CustomersTab })));
+const SalesTab = lazy(() => import('./components/admin/SalesTab').then(module => ({ default: module.SalesTab })));
+const ReportsTab = lazy(() => import('./components/admin/ReportsTab').then(module => ({ default: module.ReportsTab })));
+const ExpensesTab = lazy(() => import('./components/admin/ExpensesTab').then(module => ({ default: module.ExpensesTab })));
 const SettingsTab = lazy(() => import('./components/admin/SettingsTab').then(module => ({ default: module.SettingsTab })));
 const ThermalReceipt = lazy(() => import('./components/admin/ThermalReceipt').then(module => ({ default: module.ThermalReceipt })));
 
-import { Search, ShoppingBag, ShieldCheck, Heart, MapPin, Phone, Clock, MessageCircle, Globe, X, Flame, Sparkles, Menu as MenuIcon } from 'lucide-react';
+import { Search, ShoppingBag, ShieldCheck, Heart, MapPin, Phone, Clock, MessageCircle, Globe, X, Flame, Sparkles, LayoutGrid, List, Menu as MenuIcon } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Navigation / View state
@@ -48,9 +92,18 @@ export const App: React.FC = () => {
     return window.location.pathname.startsWith('/admin') ? 'admin' : 'store';
   });
   const [adminTab, setAdminTab] = useState<AdminTab>('orders');
+  const focusedAdminTab=useRef<AdminTab|null>(null);
+
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(apiState().admin);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAdminMobileOpen, setIsAdminMobileOpen] = useState(false);
+  const [isAdminCompact, setIsAdminCompact] = useState(() => window.innerWidth <= 1024);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1024px)');
+    const update = () => setIsAdminCompact(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [isAdminSidebarCollapsed, setIsAdminSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('alfa_admin_sidebar_collapsed') === 'true';
@@ -69,6 +122,21 @@ export const App: React.FC = () => {
     });
   };
 
+  // Keep the mobile navigation predictable for keyboard and touch users.
+  useEffect(() => {
+    if (!isAdminMobileOpen) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsAdminMobileOpen(false);
+    };
+    document.addEventListener('keydown', onEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isAdminMobileOpen]);
+
   // Live Database State from StorageService
   const [settings, setSettings] = useState<StoreSettings>(() => StorageService.getSettings());
   const [categories, setCategories] = useState<Category[]>(() => StorageService.getCategories());
@@ -78,8 +146,23 @@ export const App: React.FC = () => {
 
   // Client App State with Cart Persistence (Section 8)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [clientCatalogSort, setClientCatalogSort] = useState<CatalogSort>('recommended');
   const [filterOnlyPromos, setFilterOnlyPromos] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
+  const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>(() => {
+    try {
+      return (localStorage.getItem('alfa_catalog_view') as 'grid' | 'list') || 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  const handleSetCatalogViewMode = (mode: 'grid' | 'list') => {
+    setCatalogViewMode(mode);
+    try {
+      localStorage.setItem('alfa_catalog_view', mode);
+    } catch {}
+  };
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('alfa_cart');
@@ -91,18 +174,18 @@ export const App: React.FC = () => {
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  useEffect(() => { setSelectedProduct(previous => previous ? products.find(p=>p.id===previous.id && p.available && !p.is_archived && categories.some(c=>c.id===p.category_id&&c.is_available)) || null : null); }, [products, categories]);
+  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [checkoutVisited,setCheckoutVisited]=useState(false);
+  useEffect(()=>{if(isCheckoutOpen)setCheckoutVisited(true);},[isCheckoutOpen]);
   const [trackingOrder, setTrackingOrder] = useState<Order | null>(null);
-  useEffect(() => {
-    let running = false;
-    const timer = setInterval(() => { if (running) return; running = true; void refresh().catch(() => {}).finally(() => { running = false; }); }, currentView === 'admin' ? 6000 : 30000);
-    return () => clearInterval(timer);
-  }, [currentView]);
   useEffect(() => {
     if (!trackingOrder) return;
     const id = trackingOrder.id;
-    const timer = setInterval(() => { void trackedOrder(id).then(order => { if (order) setTrackingOrder(order); }).catch(() => {}); }, 5000);
-    return () => clearInterval(timer);
+    let active = true;
+    const timer = setInterval(() => { void trackedOrder(id).then(order => { if (active && order) setTrackingOrder(order); }).catch(() => {}); }, 5000);
+    return () => { active = false; clearInterval(timer); };
   }, [trackingOrder?.id]);
 
   // Admin Print Modal State & Audio chime
@@ -121,7 +204,7 @@ export const App: React.FC = () => {
     const nextVal = !soundEnabled;
     setSoundEnabled(nextVal);
     const curr = StorageService.getSettings();
-    StorageService.updateSettings({ ...curr, order_sound_enabled: nextVal });
+    void StorageService.updateSettings({ ...curr, order_sound_enabled: nextVal }).catch(() => setSoundEnabled(!nextVal));
   };
 
   // Save cart changes to localStorage (Section 8)
@@ -185,6 +268,15 @@ export const App: React.FC = () => {
   // Cart operations
   const handleAddToCart = (item: CartItem) => {
     setCart(prev => {
+      // Se o item já existia no carrinho e estava sendo editado, atualiza no mesmo lugar
+      const editingIdx = prev.findIndex(i => i.id === item.id);
+      if (editingIdx >= 0) {
+        const updated = [...prev];
+        updated[editingIdx] = item;
+        return updated;
+      }
+
+      // Senão verifica se já há um item idêntico (mesmas opções e observações)
       const existingIdx = prev.findIndex(i =>
         i.product.id === item.product.id &&
         JSON.stringify(i.selectedOptions) === JSON.stringify(item.selectedOptions) &&
@@ -202,7 +294,14 @@ export const App: React.FC = () => {
       }
       return [...prev, item];
     });
+    setEditingCartItem(null);
     setIsCartOpen(true);
+  };
+
+  const handleEditCartItem = (item: CartItem) => {
+    setIsCartOpen(false);
+    setEditingCartItem(item);
+    setSelectedProduct(item.product);
   };
 
   const handleUpdateCartQuantity = (id: string, newQty: number) => {
@@ -228,21 +327,21 @@ export const App: React.FC = () => {
 
   // Filter products for client view (apenas produtos ativos/disponíveis e não arquivados)
   const displayProducts = useMemo(() => {
-    return products.filter(p => {
+    return sortCatalog(products.filter(p => {
       if (p.is_archived || !p.available || !categories.some(c => c.id === p.category_id && c.is_available)) return false;
       if (filterOnlyPromos && (!p.promo_price || p.promo_price <= 0 || p.promo_price >= p.price)) return false;
       if (selectedCategoryId && p.category_id !== selectedCategoryId) return false;
       if (clientSearchTerm.trim()) {
-        const term = clientSearchTerm.toLowerCase();
-        return p.name.toLowerCase().includes(term) || p.description?.toLowerCase().includes(term);
+        const term = normalizeAdminSearch(clientSearchTerm);
+        return normalizeAdminSearch(p.name).includes(term) || normalizeAdminSearch(p.description || '').includes(term);
       }
       return true;
-    });
-  }, [products, categories, selectedCategoryId, clientSearchTerm, filterOnlyPromos]);
+    }), clientCatalogSort);
+  }, [products, categories, selectedCategoryId, clientSearchTerm, filterOnlyPromos, clientCatalogSort]);
 
   // Group products by category when no specific category is filtered
   const productsByCategory = useMemo(() => {
-    if (selectedCategoryId !== null || clientSearchTerm.trim() || filterOnlyPromos) {
+    if (clientCatalogSort !== 'recommended' || selectedCategoryId !== null || clientSearchTerm.trim() || filterOnlyPromos) {
       return null; // show single flat grid
     }
     const grouped: { category: Category; items: Product[] }[] = [];
@@ -255,7 +354,7 @@ export const App: React.FC = () => {
       }
     });
     return grouped;
-  }, [categories, products, selectedCategoryId, clientSearchTerm, filterOnlyPromos]);
+  }, [categories, products, selectedCategoryId, clientSearchTerm, filterOnlyPromos, clientCatalogSort]);
 
   // Categorias ativas com produtos disponíveis para o cardápio público
   const clientCategories = useMemo(() => {
@@ -263,6 +362,9 @@ export const App: React.FC = () => {
       .filter(c => c.is_available && products.some(p => !p.is_archived && p.available && p.category_id === c.id))
       .sort((a, b) => a.sort_order - b.sort_order);
   }, [categories, products]);
+
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => { try { const value=JSON.parse(localStorage.getItem('alfa_favorites')||'[]'); return Array.isArray(value)?value.filter((x:unknown)=>typeof x==='string'):[]; } catch { return []; } });
+  const toggleFavorite = (id: string) => setFavoriteIds(previous => { const next=previous.includes(id)?previous.filter(x=>x!==id):[...previous,id]; try { localStorage.setItem('alfa_favorites',JSON.stringify(next)); } catch {} return next; });
 
   // Highlights / Most Popular Products for Homepage
   const featuredProducts = useMemo(() => {
@@ -350,29 +452,31 @@ export const App: React.FC = () => {
 
     return (
       <Suspense fallback={<main className="connection-screen">Carregando o painel…</main>}>
-      <div className="admin-layout-container" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f8fafc', flexDirection: 'column' }}>
+      <div className={`admin-layout-container admin-shell admin-theme-light`} style={{ display: 'flex', minHeight: '100vh', backgroundColor: 'var(--admin-theme-page)', flexDirection: 'column' }}>
+        <a className="admin-skip-link" href="#admin-main-content">Ir para o conteúdo</a>
         <ConnectionNotice />
         {/* Universal Admin Topbar with Hamburger Toggle */}
+        <LiveSync admin={true}/>
         <header className="admin-topbar"
           style={{
-            backgroundColor: '#ffffff',
-            color: '#0f172a',
+            backgroundColor: 'var(--admin-theme-surface)',
+            color: 'var(--admin-theme-text)',
             padding: '10px 18px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: '1px solid var(--admin-theme-border)',
             position: 'sticky',
             top: 0,
             zIndex: 50,
             boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div className="admin-topbar-context" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               type="button"
               onClick={() => {
-                if (window.innerWidth <= 1024) {
+                if (isAdminCompact) {
                   setIsAdminMobileOpen(!isAdminMobileOpen);
                 } else {
                   handleToggleAdminSidebar();
@@ -392,13 +496,15 @@ export const App: React.FC = () => {
                 transition: 'all 0.15s ease'
               }}
               title={isAdminSidebarCollapsed ? 'Mostrar Menu Lateral (Expandir)' : 'Ocultar Menu Lateral (Recolher)'}
-              aria-label="Alternar Menu Lateral"
+              aria-label={isAdminMobileOpen ? "Fechar menu administrativo" : "Alternar menu administrativo"}
+              aria-expanded={isAdminCompact ? isAdminMobileOpen : !isAdminSidebarCollapsed}
+              aria-controls="admin-navigation"
             >
               <MenuIcon size={20} />
             </button>
 
             {/* When collapsed on desktop, show the brand mini logo */}
-            {isAdminSidebarCollapsed && (
+            {isAdminSidebarCollapsed && !isAdminCompact && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingRight: 10, borderRight: '1px solid #e2e8f0' }}>
                 {settings.logo_url && (
                   <img
@@ -413,23 +519,14 @@ export const App: React.FC = () => {
               </div>
             )}
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.9rem' }}>
-              <span style={{ fontWeight: 700, color: '#0f172a' }}>
-                {adminTab === 'dashboard' && 'Dashboard Geral'}
-                {adminTab === 'orders' && 'Pedidos em Andamento (Kanban)'}
-                {adminTab === 'schedule' && 'Agenda & Horários'}
-                {adminTab === 'products' && 'Cardápio & Produtos'}
-                {adminTab === 'categories' && 'Categorias de Produtos'}
-                {adminTab === 'banners' && 'Banners Promocionais'}
-                {adminTab === 'neighborhoods' && 'Bairros & Taxas de Entrega'}
-                {adminTab === 'coupons' && 'Cupons & Descontos'}
-                {adminTab === 'customers' && 'Clientes Cadastrados (LGPD)'}
-                {adminTab === 'settings' && 'Configurações da Loja'}
-              </span>
+            <div className="admin-location">
+              <small>Painel / {ADMIN_PAGES[adminTab].group}</small>
+              <strong>{ADMIN_PAGES[adminTab].title}</strong>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="admin-topbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <AdminWorkspaceTools currentTab={adminTab} onNavigate={tab => { setAdminTab(tab); setIsAdminMobileOpen(false); }} />
             {/* Audio chime status button */}
             <button
               type="button"
@@ -447,13 +544,15 @@ export const App: React.FC = () => {
                 fontWeight: 700,
                 cursor: 'pointer'
               }}
+              className="admin-topbar-sound"
+              aria-pressed={soundEnabled}
               title={soundEnabled ? 'Som de pedido ativado' : 'Som de pedido desativado'}
             >
               <span>{soundEnabled ? '🔔 Som Ativo' : '🔕 Sem Som'}</span>
             </button>
 
             {pendingOrdersCount > 0 && (
-              <span style={{
+              <span className="admin-pending-count" style={{
                 background: 'var(--color-primary, #dc2626)',
                 color: '#fff',
                 fontSize: '0.75rem',
@@ -466,6 +565,7 @@ export const App: React.FC = () => {
             )}
 
             <button
+              className="admin-store-link"
               onClick={() => navigateTo('store')}
               style={{
                 display: 'flex',
@@ -486,7 +586,7 @@ export const App: React.FC = () => {
           </div>
         </header>
 
-        <div style={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
+        <div className="admin-layout-container" style={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
           <AdminSidebar
             currentTab={adminTab}
             onSelectTab={setAdminTab}
@@ -505,7 +605,7 @@ export const App: React.FC = () => {
             onToggleCollapse={handleToggleAdminSidebar}
           />
 
-          <main className="admin-content" style={{ flexGrow: 1, minWidth: 0 }}>
+          <main ref={node=>{if(node&&focusedAdminTab.current!==adminTab){node.scrollTop=0;node.focus({preventScroll:true});focusedAdminTab.current=adminTab;}}} id="admin-main-content" data-admin-page={adminTab} tabIndex={-1} className="admin-content" style={{ flexGrow: 1, minWidth: 0 }}>
           {adminTab === 'dashboard' && (
             <DashboardTab
               orders={orders}
@@ -516,6 +616,7 @@ export const App: React.FC = () => {
 
           {adminTab === 'orders' && (
             <OrdersManagerTab
+              onNewOrder={() => navigateTo('store')}
               orders={orders}
               onUpdateStatus={(id, status) => { void StorageService.updateOrderStatus(id, status).catch(error => window.dispatchEvent(new CustomEvent('alfa-save', { detail: { status: 'error', message: error.message } }))); }}
               onPrintOrder={(ord) => setPrintingOrder(ord)}
@@ -527,6 +628,7 @@ export const App: React.FC = () => {
             <ScheduleTab
               orders={orders}
               onSelectOrder={() => setAdminTab('orders')}
+              onPrintOrder={(ord) => setPrintingOrder(ord)}
             />
           )}
 
@@ -562,6 +664,15 @@ export const App: React.FC = () => {
           {adminTab === 'customers' && (
             <CustomersTab />
           )}
+          {adminTab === 'sales' && (
+            <SalesTab products={products} />
+          )}
+
+          {adminTab === 'expenses' && (<ExpensesTab />)}
+
+          {adminTab === 'reports' && (
+            <ReportsTab orders={orders} />
+          )}
 
           {adminTab === 'settings' && (
             <SettingsTab
@@ -593,13 +704,22 @@ export const App: React.FC = () => {
       backgroundColor: '#fcfaf7',
       paddingBottom: cart.length > 0 ? 130 : 70
     }}>
+      <a className="store-skip-link" href="#cardapio-section">Ir para o cardápio</a>
       {/* Storefront Header (Section 2) */}
+      <LiveSync admin={false}/>
       <Header
         settings={settings}
         cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenAdmin={() => navigateTo('admin')}
         onNavigateMenuSection={handleNavigateMenu}
+        onSearchClick={() => {
+          setFilterOnlyPromos(false);
+          const el = document.getElementById('cardapio-section');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+          const searchInput = document.querySelector('input[aria-label="Buscar no cardápio"]') as HTMLInputElement;
+          searchInput?.focus();
+        }}
       />
 
       {/* Hero Section & Promotional Banners (Section 3 & 21) */}
@@ -625,9 +745,59 @@ export const App: React.FC = () => {
         }}
       />
 
+      <CatalogBenefits offers={cache.alfa_public_offers || []} program={cache.alfa_loyalty_program} />
       {/* Main Catalog Content */}
-      <main id="cardapio-section" className="catalog-main">
-        <div className="catalog-heading"><div><h2>Nosso cardápio</h2><p>Escolha seus favoritos e faça seu pedido.</p></div><div className="catalog-search"><Search size={18}/><input type="search" aria-label="Buscar no cardápio" placeholder="Buscar no cardápio..." value={clientSearchTerm} onChange={e=>setClientSearchTerm(e.target.value)}/>{clientSearchTerm&&<button onClick={()=>setClientSearchTerm('')} aria-label="Limpar busca"><X size={16}/></button>}</div></div>
+      <main id="cardapio-section" className="catalog-main" tabIndex={-1}>
+        <div className="catalog-heading">
+          <div>
+            <span className="catalog-eyebrow">ESCOLHA. PERSONALIZE. APROVEITE.</span>
+            <h2>O que vai ser hoje?</h2>
+            <p>Escolha seus favoritos e faça seu pedido.</p>
+          </div>
+          <div className="catalog-toolbar">
+            <div className="catalog-search">
+              <Search size={18}/>
+              <input
+                type="search"
+                aria-label="Buscar no cardápio"
+                placeholder="Buscar no cardápio..."
+                value={clientSearchTerm}
+                onChange={e=>setClientSearchTerm(e.target.value)}
+              />
+              {clientSearchTerm && (
+                <button onClick={()=>setClientSearchTerm('')} aria-label="Limpar busca">
+                  <X size={16}/>
+                </button>
+              )}
+            </div>
+
+            <div className="catalog-view-toggle" role="group" aria-label="Modo de exibição do cardápio">
+              <span className="catalog-view-label">Visualizar:</span>
+              <div className="catalog-view-options">
+                <button
+                  type="button"
+                  className={`catalog-view-btn ${catalogViewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => handleSetCatalogViewMode('grid')}
+                  aria-pressed={catalogViewMode === 'grid'}
+                  title="Visualizar em cards"
+                >
+                  <LayoutGrid size={16} aria-hidden="true" />
+                  <span>Cards</span>
+                </button>
+                <button
+                  type="button"
+                  className={`catalog-view-btn ${catalogViewMode === 'list' ? 'active' : ''}`}
+                  onClick={() => handleSetCatalogViewMode('list')}
+                  aria-pressed={catalogViewMode === 'list'}
+                  title="Visualizar em Lista"
+                >
+                  <List size={16} aria-hidden="true" />
+                  <span>Lista</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Categories Bar (Section 4) */}
         <CategoryBar
@@ -640,73 +810,19 @@ export const App: React.FC = () => {
           }}
         />
 
-        {/* Promo Filter Chip */}
-        {filterOnlyPromos && (
-          <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{
-              backgroundColor: '#fee2e2',
-              color: '#991b1b',
-              padding: '6px 14px',
-              borderRadius: 9999,
-              fontWeight: 800,
-              fontSize: '0.85rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-            }}>
-              🏷️ Mostrando Promoções & Descontos Especiais
-            </span>
-            <button
-              onClick={() => setFilterOnlyPromos(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#dc2626',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Ver cardápio completo
-            </button>
-          </div>
-        )}
+        <div className="catalog-sort-tools"><label htmlFor="client-catalog-sort">Ordenar cardápio<select aria-label="Ordenar cardápio" id="client-catalog-sort" value={clientCatalogSort} onChange={e=>setClientCatalogSort(e.target.value as CatalogSort)}><option value="recommended">Ordem original</option><option value="name">Nome (A–Z)</option><option value="priceAsc">Menor preço base</option><option value="priceDesc">Maior preço base</option></select></label><p>Ordenação pelo preço exibido, incluindo promoções. Adicionais podem aumentar o total.</p>{clientCatalogSort!=='recommended'&&<button type="button" onClick={()=>setClientCatalogSort('recommended')}>Restaurar ordem original</button>}</div>
+        <div className="catalog-result-summary" role="status" aria-live="polite"><span>{displayProducts.length} {displayProducts.length === 1 ? 'opção no cardápio' : 'opções no cardápio'}</span><small>Toque em um produto para ver os detalhes</small></div>
 
-        {/* Quick Search Suggestion Chips (quando houver busca ativa ou como atalhos) */}
-        {clientSearchTerm && (
-          <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.82rem', color: '#64748b', fontWeight: 600 }}>Filtrando por:</span>
-            <span style={{
-              backgroundColor: '#fee2e2',
-              color: '#b91c1c',
-              padding: '4px 12px',
-              borderRadius: 9999,
-              fontWeight: 700,
-              fontSize: '0.84rem'
-            }}>
-              "{clientSearchTerm}"
-            </span>
-            <button
-              onClick={() => setClientSearchTerm('')}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#ef4444',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                textDecoration: 'underline'
-              }}
-            >
-              Limpar filtro
-            </button>
-          </div>
-        )}
+        {(clientSearchTerm.trim()||selectedCategoryId!==null||filterOnlyPromos)&&<div className="catalog-filter-summary" role="group" aria-label="Filtros ativos do cardápio">
+          {clientSearchTerm.trim()&&<button type="button" onClick={()=>setClientSearchTerm('')} aria-label={`Remover busca do cardápio: ${clientSearchTerm.trim()}`}><span>Busca: {clientSearchTerm.trim()}</span><span aria-hidden="true">×</span></button>}
+          {selectedCategoryId!==null&&<button type="button" onClick={()=>setSelectedCategoryId(null)} aria-label="Remover categoria do cardápio"><span>Categoria: {categories.find(c=>c.id===selectedCategoryId)?.name||'Selecionada'}</span><span aria-hidden="true">×</span></button>}
+          {filterOnlyPromos&&<button type="button" onClick={()=>setFilterOnlyPromos(false)} aria-label="Remover filtro de ofertas"><span>Somente ofertas</span><span aria-hidden="true">×</span></button>}
+          <button type="button" className="catalog-clear-all" onClick={()=>{setClientSearchTerm('');setSelectedCategoryId(null);setFilterOnlyPromos(false);}}>Limpar filtros do cardápio</button>
+        </div>}
 
+        {!clientSearchTerm && selectedCategoryId === null && <CatalogSpotlight products={products} categories={categories} bestsellingIds={cache.alfa_bestsellers||[]} favoriteIds={favoriteIds} onToggleFavorite={toggleFavorite} onSelect={setSelectedProduct} />}
         {/* Os Mais Pedidos da Galera (Quando estiver na visão geral sem filtro de busca) */}
-        {!clientSearchTerm && selectedCategoryId === null && featuredProducts.length > 0 && (
+        {clientCatalogSort==='recommended' && !clientSearchTerm && selectedCategoryId === null && featuredProducts.length > 0 && (
           <section className="catalog-featured" style={{ marginBottom: 40 }}>
             <div style={{
               display: 'flex',
@@ -729,7 +845,7 @@ export const App: React.FC = () => {
                   <Flame size={15} />
                   <span>Destaques da Alfa</span>
                 </div>
-                <h2 style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                <h2 className="artisan-section-title">
                   Destaques do cardápio
                 </h2>
                 <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '4px 0 0' }}>
@@ -738,15 +854,13 @@ export const App: React.FC = () => {
               </div>
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
-              gap: 24
-            }}>
+            <div className={`catalog-products-grid ${catalogViewMode === 'list' ? 'view-list' : ''}`}>
               {featuredProducts.map(product => (
                 <ProductCard
                   key={`feat-${product.id}`}
                   product={product}
+                  isFavorite={favoriteIds.includes(product.id)} onToggleFavorite={toggleFavorite}
+                  viewMode={catalogViewMode}
                   onSelect={(p) => setSelectedProduct(p)}
                 />
               ))}
@@ -755,7 +869,7 @@ export const App: React.FC = () => {
         )}
 
         {/* Product Sections */}
-        {productsByCategory ? (
+        {productsByCategory && displayProducts.length>0 ? (
           /* Multi-Category grouped display */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 48 }}>
             {productsByCategory.map(({ category, items }) => (
@@ -769,7 +883,7 @@ export const App: React.FC = () => {
                   paddingBottom: 10
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <h2 style={{ fontSize: '1.4rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                    <h2 className="artisan-section-title">
                       {category.name}
                     </h2>
                     <span style={{
@@ -785,15 +899,13 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
-                  gap: 24
-                }}>
+                <div className={`catalog-products-grid ${catalogViewMode === 'list' ? 'view-list' : ''}`}>
                   {items.map(product => (
                     <ProductCard
                       key={product.id}
                       product={product}
+                  isFavorite={favoriteIds.includes(product.id)} onToggleFavorite={toggleFavorite}
+                      viewMode={catalogViewMode}
                       onSelect={(p) => setSelectedProduct(p)}
                     />
                   ))}
@@ -834,6 +946,7 @@ export const App: React.FC = () => {
                   onClick={() => {
                     setClientSearchTerm('');
                     setSelectedCategoryId(null);
+                    setFilterOnlyPromos(false);
                   }}
                   className="btn btn-primary"
                   style={{ marginTop: 16, padding: '8px 18px', borderRadius: 10, fontSize: '0.85rem', fontWeight: 700 }}
@@ -842,15 +955,13 @@ export const App: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
-                gap: 24
-              }}>
+              <div className={`catalog-products-grid ${catalogViewMode === 'list' ? 'view-list' : ''}`}>
                 {displayProducts.map(product => (
                   <ProductCard
                     key={product.id}
                     product={product}
+                  isFavorite={favoriteIds.includes(product.id)} onToggleFavorite={toggleFavorite}
+                    viewMode={catalogViewMode}
                     onSelect={(p) => setSelectedProduct(p)}
                   />
                 ))}
@@ -1025,7 +1136,9 @@ export const App: React.FC = () => {
               }}>
                 {cart.reduce((acc, i) => acc + i.quantity, 0)}
               </div>
-              <span>Ver Carrinho</span>
+              <span>
+                Ver Sacola • {cart.reduce((acc, i) => acc + i.quantity, 0)} {cart.reduce((acc, i) => acc + i.quantity, 0) === 1 ? 'item' : 'itens'}
+              </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1166,11 +1279,20 @@ export const App: React.FC = () => {
       <ConnectionNotice />
       {/* Modals */}
       {selectedProduct && selectedProduct.available && !selectedProduct.is_archived && (
-        <ProductDetailModal
-          product={selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          onAddToCart={handleAddToCart}
-        />
+        <ErrorBoundary fallbackTitle="Erro ao abrir personalização" onReset={() => setSelectedProduct(null)}>
+          <Suspense fallback={<div className="modal-loading" role="status">Carregando produto…</div>}>
+          <ProductDetailModal
+            key={selectedProduct.id}
+            product={selectedProduct}
+            editingItem={editingCartItem}
+            onClose={() => {
+              setSelectedProduct(null);
+              setEditingCartItem(null);
+            }}
+            onAddToCart={handleAddToCart}
+          />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       <CartDrawer
@@ -1179,30 +1301,37 @@ export const App: React.FC = () => {
         cart={cart}
         onUpdateQuantity={handleUpdateCartQuantity}
         onRemoveItem={handleRemoveCartItem}
+        onEditItem={handleEditCartItem}
         onCheckout={() => {
           setIsCartOpen(false);
           setIsCheckoutOpen(true);
         }}
       />
 
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        cart={cart}
-        settings={settings}
-        neighborhoods={neighborhoods}
-        onOrderCompleted={(order) => {
-          setCart([]);
-          setTrackingOrder(order);
-        }}
-      />
+      {(isCheckoutOpen||checkoutVisited)&&<ErrorBoundary fallbackTitle="Erro na finalização do pedido" onReset={() => setIsCheckoutOpen(false)}>
+        <Suspense fallback={isCheckoutOpen?<div className="modal-loading" role="status">Carregando finalização…</div>:null}>
+        <CheckoutModal
+          isOpen={isCheckoutOpen}
+          onClose={() => setIsCheckoutOpen(false)}
+          cart={cart}
+          settings={settings}
+          neighborhoods={neighborhoods}
+          onOrderCompleted={(order) => {
+            setCart([]);
+            setTrackingOrder(order);
+          }}
+        />
+        </Suspense>
+      </ErrorBoundary>}
 
       {trackingOrder && (
+        <Suspense fallback={<div className="modal-loading" role="status">Carregando acompanhamento…</div>}>
         <OrderTracker
           order={trackingOrder}
           onClose={() => setTrackingOrder(null)}
           settings={settings}
         />
+        </Suspense>
       )}
     </div>
   );

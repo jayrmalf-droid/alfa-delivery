@@ -1,0 +1,38 @@
+/* 0.8.4 — limited to the administrative workspace. */
+.admin-shell .schedule-periods{flex-wrap:wrap;min-width:0;max-width:100%}
+.admin-shell .schedule-periods button{flex:1 1 auto;min-height:40px}
+.admin-shell .schedule-range{margin:0;color:#64748b;font-size:12px;line-height:1.6}
+.admin-shell .admin-topbar-context{min-width:0}
+.admin-shell .admin-topbar-context>button{flex-shrink:0}
+.admin-shell .admin-pending-count{white-space:nowrap}
+.admin-shell .dashboard-header>div,.admin-shell .dashboard-status>*{min-width:0;max-width:100%}
+.admin-shell .dashboard-status>div{flex-wrap:wrap}
+.admin-shell .dashboard-status span{overflow-wrap:anywhere}
+.admin-shell [data-admin-page=schedule] .card>div:first-child{flex-wrap:wrap;gap:8px}
+@media(max-width:760px){
+ .admin-shell .admin-topbar{display:grid!important;grid-template-columns:minmax(0,1fr);gap:8px!important;padding:10px 14px!important;min-height:0}
+ .admin-shell .admin-topbar-context{width:100%;gap:10px!important}
+ .admin-shell .admin-topbar-actions{width:100%;display:flex!important;flex-wrap:nowrap!important;gap:8px!important;justify-content:space-between!important;min-width:0}
+ .admin-shell .admin-workspace-tools{margin-right:auto;flex-shrink:0}
+ .admin-shell .admin-topbar-sound{display:none!important}
+ .admin-shell .admin-store-link{flex-shrink:0;white-space:nowrap;min-height:40px}
+ .admin-shell .admin-pending-count{font-size:11px!important;padding:4px 8px!important}
+ .admin-shell .dashboard-periods{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));min-width:0}
+ .admin-shell .dashboard-periods button{min-width:0;white-space:normal}
+ .admin-shell .reports-premium .rp-filterbar{display:grid!important;grid-template-columns:minmax(0,1fr);gap:12px;padding:14px}
+ .admin-shell .reports-premium .rp-dates{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;min-width:0}
+ .admin-shell .reports-premium .rp-dates>svg{display:none}
+ .admin-shell .reports-premium .rp-dates label{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+ .admin-shell .reports-premium .rp-dates input{width:100%;max-width:100%;min-width:0;box-sizing:border-box;font-size:12px}
+ .admin-shell .reports-premium .rp-status{display:grid;grid-template-columns:auto minmax(0,1fr);min-width:0}
+ .admin-shell .reports-premium .rp-status select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+ .admin-shell .reports-premium .rp-filter-count{margin-left:0;white-space:normal}
+ .admin-shell .reports-premium .rp-tabs button{flex:1 1 90px;font-size:12px;padding:9px 6px}
+ .admin-shell .reports-premium .rp-payment-row{grid-template-columns:minmax(0,1fr) 32px auto}
+ .admin-shell .reports-premium .rp-payment-row .rp-progress{grid-row:2;grid-column:1/-1}
+ .admin-shell .reports-premium .rp-product-row{grid-template-columns:25px minmax(0,1fr) auto}
+ .admin-shell .reports-premium .rp-product-progress{grid-row:2;grid-column:2/-1}
+ .admin-shell .reports-premium .rp-kpi strong{white-space:normal;overflow-wrap:anywhere}
+ .admin-shell .reports-premium .rp-secondary-kpis>div{grid-template-columns:20px minmax(0,1fr)}
+ .admin-shell .reports-premium .rp-secondary-kpis strong{grid-column:2;white-space:normal;overflow-wrap:anywhere}
+}

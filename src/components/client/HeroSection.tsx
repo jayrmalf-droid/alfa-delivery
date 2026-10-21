@@ -8,14 +8,14 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageCircle,
-  Truck,
   CreditCard,
   Package,
   Flame,
   Bike,
   Tag,
   Percent,
-  Sparkles
+  Sparkles,
+  ShoppingCart
 } from 'lucide-react';
 
 interface Props {
@@ -64,11 +64,11 @@ export const HeroSection: React.FC<Props> = ({
 
   const index = Math.max(0, banners.findIndex(b => b.id === selectedId));
   const banner = banners[index];
-  const imageKey = `${banner?.image_desktop || ''}|${banner?.image_mobile || ''}`;
+  const imageKey = `${banner?.image_desktop || ''}|${(banner?.image_mobile?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_mobile) || ''}`;
   const imageFailed = failedImages.includes(imageKey);
 
-  const title = banner?.title || 'Seu momento fica melhor com Alfa Salgados';
-  const subtitle = banner?.subtitle || 'Coxinhas, bolinhas de queijo e quibes crocantes, preparados na hora para você.';
+  const title = index === 0 ? 'Seu momento fica muito melhor com Alfa Sabores VCA' : banner?.title || 'Seu momento fica muito melhor com Alfa Sabores VCA';
+  const subtitle = index === 0 ? 'Coxinhas douradas, bolinhas de queijo e quibes crocantes fritos na hora com muito carinho' : banner?.subtitle || 'Coxinhas douradas, bolinhas de queijo e quibes crocantes fritos na hora com muito carinho';
   const whatsapp = `https://wa.me/${normalizePhone(settings.whatsapp)}?text=${encodeURIComponent(
     'Olá! Gostaria de encomendar salgados.'
   )}`;
@@ -103,7 +103,7 @@ export const HeroSection: React.FC<Props> = ({
     setSelectedId(banners[(index + direction + banners.length) % banners.length].id);
 
   const showFloating = banner?.show_floating_button !== false;
-  const floatingTitle = banner?.button_title || 'Monte seu cento';
+  const floatingTitle = index === 0 ? 'Monte seu combo' : banner?.button_title || 'Monte seu combo';
   const floatingSubtitle = banner?.button_subtitle || 'Escolha seus sabores favoritos';
   const floatingPriceText = banner?.button_price_text || (from !== null ? `A partir de ${formatCurrency(from)}` : '');
   const floatingIcon = banner?.button_icon || 'package';
@@ -169,12 +169,6 @@ export const HeroSection: React.FC<Props> = ({
 
   return (
     <section className="store-hero" aria-label="Destaques e informações da loja">
-      {settings.is_paused && (
-        <div className="paused-notice" role="status">
-          {settings.pause_message || 'Estamos temporariamente sem receber pedidos.'}
-        </div>
-      )}
-
       <div className="store-container">
         <div className="campaign-panel">
           <div className="campaign-copy">
@@ -184,8 +178,8 @@ export const HeroSection: React.FC<Props> = ({
 
             <div className="campaign-text" aria-live="polite" aria-atomic="true">
               <h1>
-                {title.split(/(Alfa Salgados)/i).map((part, i) =>
-                  /^(Alfa Salgados)$/i.test(part) ? (
+                {title.split(/(Alfa Sabores VCA|Alfa Salgados)/i).map((part, i) =>
+                  /^(Alfa Sabores VCA|Alfa Salgados)$/i.test(part) ? (
                     <span className="campaign-brand-highlight" key={i}>
                       {part}
                     </span>
@@ -200,21 +194,26 @@ export const HeroSection: React.FC<Props> = ({
             <div className="campaign-actions">
               {link ? (
                 <a className="campaign-primary" href={link} target="_blank" rel="noopener noreferrer">
-                  {action.label} <ArrowRight size={18} />
+                  <ShoppingCart size={18} />
+                  <span>{action.label}</span>
+                  <ArrowRight size={16} />
                 </a>
               ) : (
                 <button className="campaign-primary" onClick={action.run}>
-                  {action.label} <ArrowRight size={18} />
+                  <ShoppingCart size={18} />
+                  <span>{action.label}</span>
+                  <ArrowRight size={16} />
                 </button>
               )}
               <a className="campaign-contact" href={whatsapp} target="_blank" rel="noopener noreferrer">
-                <MessageCircle size={18} /> Encomendar pelo WhatsApp
+                <MessageCircle size={18} className="whatsapp-green-icon" />
+                <span>Encomendar pelo WhatsApp</span>
               </a>
             </div>
 
             <div className="campaign-notes-row">
               <span className="campaign-note">
-                <Truck size={15} /> Entrega e retirada
+                <Bike size={15} /> Entrega e retirada
               </span>
               <span className="campaign-note-divider">|</span>
               <span className="campaign-note">
@@ -227,10 +226,10 @@ export const HeroSection: React.FC<Props> = ({
             <picture key={banner?.id || 'default'}>
               <source
                 media="(max-width:640px)"
-                srcSet={imageFailed ? '/hero-salgados.webp' : banner?.image_mobile || banner?.image_desktop || '/hero-salgados.webp'}
+                srcSet={imageFailed ? '/hero-artisan.webp' : (banner?.image_mobile?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_mobile) || (banner?.image_desktop?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_desktop) || '/hero-artisan.webp'}
               />
               <img
-                src={imageFailed ? '/hero-salgados.webp' : banner?.image_desktop || '/hero-salgados.webp'}
+                src={imageFailed ? '/hero-artisan.webp' : (banner?.image_desktop?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_desktop) || '/hero-artisan.webp'}
                 onError={() => {
                   if (!imageFailed) setFailedImages(previous => [...previous, imageKey]);
                 }}
@@ -302,42 +301,6 @@ export const HeroSection: React.FC<Props> = ({
             </div>
           </div>
         )}
-
-        {/* 4 Feature cards strip matching reference image */}
-        <div className="benefits-row">
-          {[
-            {
-              icon: Flame,
-              title: 'Fritos na hora',
-              description: 'Crocantes e saborosos'
-            },
-            {
-              icon: Bike,
-              title: 'Entrega e retirada',
-              description: 'Peça e receba como preferir'
-            },
-            {
-              icon: Package,
-              title: 'Monte seu cento',
-              description: 'Escolha seus sabores favoritos'
-            },
-            {
-              icon: CreditCard,
-              title: 'Pagamento fácil',
-              description: 'Pix, cartão ou dinheiro'
-            }
-          ].map(({ icon: Icon, title, description }) => (
-            <div className="benefit" key={title}>
-              <span>
-                <Icon size={22} />
-              </span>
-              <div>
-                <strong>{title}</strong>
-                <small>{description}</small>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   );

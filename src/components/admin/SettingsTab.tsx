@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useConfirmedSave } from '../../utils/useConfirmedSave';
+import React, { useState, useEffect, useRef } from 'react';
 import { StoreSettings } from '../../types';
 import { StorageService } from '../../services/storageService';
 import {
@@ -50,7 +51,9 @@ import {
   Copy,
   Flame,
   Leaf,
-  Coffee
+  Coffee,
+  Award,
+  Database
 } from 'lucide-react';
 import { SOUND_TYPES, playNewOrderSound, stopOrderSound } from '../../utils/sound';
 
@@ -58,12 +61,80 @@ interface SettingsTabProps {
   settings: StoreSettings;
 }
 
-type SettingsSection = 'general' | 'theme' | 'sounds' | 'printer' | 'payments' | 'schedule';
+type SettingsSection = 'general' | 'theme' | 'sounds' | 'printer' | 'payments' | 'schedule' | 'loyalty' | 'backup' | 'audit';
 
 export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
+  const { saving, saveError, runSave } = useConfirmedSave();
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [formData, setFormData] = useState<StoreSettings>(settings);
+  const [previewScheduledOrder, setPreviewScheduledOrder] = useState(false);
+  const savedSettingsRef = useRef(settings);
+  useEffect(() => { savedSettingsRef.current = settings; }, [settings]);
+  useEffect(() => () => { applyTheme(savedSettingsRef.current); }, []);
+  const themeFields = ['primary_color', 'secondary_color', 'bg_color', 'text_color', 'palette_id'] as const;
+  const themeHasChanges = themeFields.some(key => formData[key] !== settings[key]);
+  const restoreSavedTheme = () => {
+    setFormData(previous => ({ ...previous,
+      primary_color: settings.primary_color, secondary_color: settings.secondary_color,
+      bg_color: settings.bg_color, text_color: settings.text_color, palette_id: settings.palette_id
+    }));
+    applyTheme(settings);
+  };
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [backupData, setBackupData] = useState<{ files: {name:string;size:number;createdAt:string}[];stale:boolean } | null>(null);
+  const [systemHealth, setSystemHealth] = useState<{database:string;integrityOk:boolean;lastBackupAt:string|null;backupCount:number;backupStale:boolean;retentionKeep:number;excessBackups:number;automaticDeletion:boolean}|null>(null);
+  const [retentionKeep, setRetentionKeep] = useState(10);
+  const refreshHealth = async () => {
+    try {
+      const r = await fetch('/api/admin/backups/health', { credentials: 'include' });
+      if (!r.ok) throw new Error('Não foi possível consultar a saúde do sistema.');
+      const data = await r.json(); setSystemHealth(data); setRetentionKeep(data.retentionKeep);
+    } catch (e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar sistema'); }
+  };
+  const saveRetention = async () => {
+    setBackupBusy(true); setBackupMessage('');
+    try {
+      const r = await fetch('/api/admin/backups/retention', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keep: retentionKeep }) });
+      if (!r.ok) throw new Error('Não foi possível salvar a política de retenção.');
+      setBackupMessage('Preferência de retenção salva. Nenhum backup foi excluído.'); await refreshHealth();
+    } catch (e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao salvar política'); }
+    finally { setBackupBusy(false); }
+  };
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupMessage, setBackupMessage] = useState('');
+  const refreshBackups = async () => {
+    try { const r = await fetch('/api/admin/backups', { credentials: 'include' }); if (!r.ok) throw new Error('Acesso indisponível. Faça login como administrador.'); setBackupData(await r.json()); }
+    catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar backups'); }
+  };
+  const createBackup = async () => {
+    setBackupBusy(true); setBackupMessage('');
+    try { const r = await fetch('/api/admin/backups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', credentials: 'include' }); if (!r.ok) throw new Error('Não foi possível criar o backup.'); setBackupMessage('Backup criado e verificado com sucesso.'); await refreshBackups(); await refreshHealth(); }
+    catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao criar backup'); } finally { setBackupBusy(false); }
+  };
+  const verifyDatabase = async () => {
+    setBackupBusy(true);
+    try { const r = await fetch('/api/admin/backups/integrity', { credentials: 'include' }); if (!r.ok) throw new Error('Não foi possível verificar o banco.'); const data = await r.json(); setBackupMessage(data.ok ? 'Integridade do banco: OK.' : 'ATENÇÃO: verificação de integridade falhou.'); }
+    catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro na verificação'); } finally { setBackupBusy(false); }
+  };
+  const [auditRows, setAuditRows] = useState<{id:string;at:string;action:string;resource:string}[]>([]);
+  const [auditFrom, setAuditFrom] = useState('');
+  const [auditTo, setAuditTo] = useState('');
+  const [auditAction, setAuditAction] = useState('');
+  const [auditError, setAuditError] = useState('');
+  const [auditLoaded, setAuditLoaded] = useState(false);
+  const auditQuery = () => new URLSearchParams([
+    ...(auditFrom ? [['from', auditFrom]] : []),
+    ...(auditTo ? [['to', auditTo]] : []),
+    ...(auditAction ? [['action', auditAction]] : [])
+  ]).toString();
+  const refreshAudit = async () => {
+    setAuditError('');
+    try {
+      const r = await fetch('/api/admin/audit?' + auditQuery(), { credentials: 'include' });
+      if (!r.ok) throw new Error('Não foi possível consultar a auditoria. Verifique seu acesso e os filtros.');
+      const data = await r.json(); setAuditRows(data.rows); setAuditLoaded(true);
+    } catch(e) { setAuditError(e instanceof Error ? e.message : 'Falha ao consultar registros'); }
+  };
   const [playingPreviewId, setPlayingPreviewId] = useState<string | null>(null);
 
   const currentColor = formData.primary_color || '#dc2626';
@@ -164,9 +235,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
     setFormData(prev => ({ ...prev, weekly_schedule: newSchedule }));
   };
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    StorageService.updateSettings(formData);
+    setSavedSuccess(false);
+    if (!await runSave(() => StorageService.updateSettings(formData))) return;
+    savedSettingsRef.current = formData;
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -190,6 +263,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
       payment_method: 'pix',
       status: 'confirmed',
       created_at: new Date().toISOString(),
+      preorder_date: previewScheduledOrder ? '2026-10-25' : null,
+      preorder_time: previewScheduledOrder ? '18:30' : null,
       items: [
         {
           quantity: 1,
@@ -242,10 +317,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
     { id: 'sounds', label: 'Sons & Alertas', icon: <Volume2 size={16} />, badge: 'Novo' },
     { id: 'printer', label: 'Comanda Térmica', icon: <Printer size={16} /> },
     { id: 'payments', label: 'Pagamentos & Pix', icon: <CreditCard size={16} /> },
-    { id: 'schedule', label: 'Horários Semanal', icon: <Clock size={16} /> }
+    { id: 'schedule', label: 'Horários da semana', icon: <Clock size={16} /> },
+    { id: 'loyalty', label: 'Fidelidade & Pontos', icon: <Award size={16} />, badge: 'Clube' },
+    { id: 'backup', label: 'Backup & Segurança', icon: <Database size={16} /> },
+    { id: 'audit', label: 'Auditoria', icon: <FileText size={16} /> }
   ];
 
   return (
+    <fieldset disabled={saving} aria-busy={saving} className="confirmed-save-fields admin-settings-polish">
+      {saveError && <p role="alert" className="confirmed-save-error">{saveError}</p>}
+      {saving && <p role="status">Aguardando confirmação de gravação…</p>}
     <div style={{
       padding: '24px',
       display: 'flex',
@@ -263,7 +344,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         flexWrap: 'wrap',
         gap: 14,
         paddingBottom: 4
-      }}>
+      }} data-admin-ui="toolbar">
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
@@ -303,10 +384,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Restaurar dados de fábrica"
-          >
+            title="Informações sobre restauração de backup"
+           data-admin-ui="button">
             <RotateCcw size={15} />
-            <span>Restaurar Padrão</span>
+            <span>Sobre restauração</span>
           </button>
 
           <button
@@ -322,7 +403,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               fontWeight: 800,
               boxShadow: '0 4px 12px rgba(220, 38, 38, 0.2)'
             }}
-          >
+           data-admin-ui="button">
             <Save size={16} />
             <span>Salvar Alterações</span>
           </button>
@@ -331,7 +412,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
       {/* Success Notification Alert */}
       {savedSuccess && (
-        <div style={{
+        <div role="status" style={{
           padding: '12px 18px',
           backgroundColor: '#dcfce7',
           border: '1.5px solid #86efac',
@@ -350,7 +431,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
       )}
 
       {/* 2. SUB-NAVIGATION TABS (Modern Segmented Bar) */}
-      <div style={{
+      <div className="admin-settings-tabs" role="tablist" aria-label="Seções de configurações" style={{
         backgroundColor: '#ffffff',
         borderRadius: 14,
         padding: '6px',
@@ -360,13 +441,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         gap: 6,
         overflowX: 'auto',
         boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-      }}>
-        {sectionsList.map(tab => {
+      }} data-admin-ui="panel">
+        {sectionsList.map((tab, index) => {
           const isActive = activeSection === tab.id;
           return (
             <button
               key={tab.id}
               type="button"
+              role="tab"
+              id={`settings-tab-${tab.id}`}
+              aria-selected={isActive}
+              aria-pressed={isActive}
+              aria-controls="settings-content"
+              tabIndex={isActive ? 0 : -1}
+              onKeyDown={event => { let next=index; if(event.key==='ArrowRight'||event.key==='ArrowDown')next=(index+1)%sectionsList.length;else if(event.key==='ArrowLeft'||event.key==='ArrowUp')next=(index+sectionsList.length-1)%sectionsList.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=sectionsList.length-1;else return;event.preventDefault();setActiveSection(sectionsList[next].id);document.getElementById(`settings-tab-${sectionsList[next].id}`)?.focus(); }}
               onClick={() => setActiveSection(tab.id)}
               style={{
                 display: 'flex',
@@ -384,7 +472,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 transition: 'all 0.15s ease',
                 position: 'relative'
               }}
-            >
+             data-admin-ui="button">
               <span style={{ display: 'flex', alignItems: 'center' }}>
                 {tab.icon}
               </span>
@@ -408,14 +496,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
       </div>
 
       {/* 3. ACTIVE TAB CONTENT PANEL */}
-      <form onSubmit={handleSubmit}>
+      <div className="settings-section-intro"><div><span>SEÇÃO ATUAL</span><h3>{sectionsList.find(section=>section.id===activeSection)?.label}</h3><p>{({general:'Dados da empresa e informações de contato exibidas na loja.',theme:'Cores e aparência do painel e do cardápio. Pré-visualize e salve para manter a escolha.',sounds:'Alertas de novos pedidos e opções de reprodução.',printer:'Identidade e formato da comanda térmica.',payments:'Formas de pagamento e dados para Pix.',schedule:'Dias e horários de funcionamento da loja.',loyalty:'Regras de pontos e recompensas para os clientes.',backup:'Cópias de segurança, diagnóstico e integridade do banco.',audit:'Consulta e exportação dos eventos registrados pelo sistema.'})[activeSection]}</p></div><span className="settings-draft-status" role="status">{JSON.stringify(formData)!==JSON.stringify(settings)?'Alterações ainda não salvas':'Configurações carregadas'}</span></div>
+      <form id="settings-content" role="tabpanel" aria-labelledby={`settings-tab-${activeSection}`} tabIndex={0} onSubmit={handleSubmit} data-admin-ui="form">
         {/* ========================================================================= */}
         {/* TAB 1: GERAL & EMPRESA */}
         {/* ========================================================================= */}
         {activeSection === 'general' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Identificação Principal */}
-            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <Store size={18} style={{ color: 'var(--color-primary-dark, #dc2626)' }} />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -423,7 +512,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 </h3>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }} data-admin-ui="grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                     Nome do Estabelecimento *
@@ -434,7 +523,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.business_name}
                     onChange={(e) => handleChange('business_name', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -446,7 +535,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.business_description}
                     onChange={(e) => handleChange('business_description', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -460,7 +549,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.whatsapp}
                     onChange={(e) => handleChange('whatsapp', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -475,7 +564,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     }}
                     className="form-input"
                     style={{ background: '#fff', cursor: 'pointer' }}
-                  >
+                   data-admin-ui="field">
                     <option value="schedule">🕒 Seguir Horário Semanal Automático</option>
                     <option value="open">🟢 Forçar ABERTO Agora</option>
                     <option value="closed">🔴 Forçar FECHADO Agora</option>
@@ -495,7 +584,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 justifyContent: 'space-between',
                 flexWrap: 'wrap',
                 gap: 12
-              }}>
+              }} data-admin-ui="toolbar">
                 <div style={{ maxWidth: 600 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     {formData.is_paused ? <PauseCircle size={18} color="#dc2626" /> : <PlayCircle size={18} color="#16a34a" />}
@@ -522,14 +611,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     color: formData.is_paused ? '#ffffff' : '#334155',
                     transition: 'all 0.15s ease'
                   }}
-                >
+                 data-admin-ui="button">
                   {formData.is_paused ? 'Reativar Pedidos' : 'Pausar Loja Agora'}
                 </button>
               </div>
             </div>
 
             {/* Redes Sociais & Endereço */}
-            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <MapPin size={18} style={{ color: 'var(--color-primary-dark, #dc2626)' }} />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -537,7 +626,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 </h3>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 14 }} data-admin-ui="grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                     Instagram (@)
@@ -548,7 +637,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.instagram || ''}
                     onChange={(e) => handleChange('instagram', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -561,11 +650,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.google_maps_url || ''}
                     onChange={(e) => handleChange('google_maps_url', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: 12 }} data-admin-ui="grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                     Rua / Logradouro
@@ -575,7 +664,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.store_address}
                     onChange={(e) => handleChange('store_address', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
@@ -586,7 +675,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.store_address_number}
                     onChange={(e) => handleChange('store_address_number', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
@@ -597,7 +686,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.store_address_complement}
                     onChange={(e) => handleChange('store_address_complement', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
@@ -608,7 +697,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.store_neighborhood}
                     onChange={(e) => handleChange('store_neighborhood', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
               </div>
             </div>
@@ -619,9 +708,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {/* TAB 2: VISUAL & CORES DO TEMA */}
         {/* ========================================================================= */}
         {activeSection === 'theme' && (
-          <div className="card" style={{ padding: 24, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 26 }}>
+          <div className="card" style={{ padding: 24, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 26 }} data-admin-ui="panel">
+          <section className="theme-preview-panel" aria-label="Prévia da identidade visual">
+            <div className="theme-preview-copy">
+              <span className="theme-preview-eyebrow">IDENTIDADE DA LOJA</span>
+              <h3>{findPaletteById(currentPaletteId)?.name || 'Cores personalizadas'}</h3>
+              <p role="status">{themeHasChanges ? 'Prévia não salva. Salve as configurações para aplicar à loja.' : 'Estas são as cores salvas da loja.'}</p>
+              <div className="theme-preview-swatches" aria-label="Cores escolhidas">
+                {[['Principal',currentColor],['Destaque',currentSecondary],['Fundo',currentBgLight],['Texto',currentTextDark]].map(([label,color]) => <span key={label}><i style={{backgroundColor:color}} aria-hidden="true"/><span>{label}<small>{color}</small></span></span>)}
+              </div>
+              <button type="button" disabled={!themeHasChanges} onClick={restoreSavedTheme}>Restaurar cores salvas</button>
+              <small>A restauração mantém as outras configurações que você editou. Ao sair desta tela, uma prévia não salva é desfeita.</small>
+            </div>
+            <div className="theme-preview-example" aria-label="Exemplo de cartão do cardápio">
+              <span>EXEMPLO DO CARDÁPIO</span><h4>Feito com carinho</h4><p>Uma identidade que acompanha cada pedido.</p>
+              <div><strong>R$ 29,90</strong><span className="theme-preview-action">Escolher opções</span></div>
+            </div>
+          </section>
+
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }} data-admin-ui="toolbar">
               <div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Palette size={22} style={{ color: 'var(--color-primary)' }} />
@@ -652,7 +758,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
             {/* SEÇÃO 1: AS 3 NOVAS PALETAS ESPECIALIZADAS */}
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }} data-admin-ui="toolbar">
                 <div>
                   <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Sparkles size={16} style={{ color: '#ea580c' }} />
@@ -664,7 +770,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }} data-admin-ui="grid">
                 {SPECIALIZED_PALETTES.map((palette) => {
                   const isSelected =
                     currentPaletteId === palette.id ||
@@ -674,6 +780,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   return (
                     <div
                       key={palette.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Usar paleta ${palette.name}`}
+                      aria-pressed={isSelected}
+                      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); handleSelectPalette(palette); } }}
                       onClick={() => handleSelectPalette(palette)}
                       style={{
                         padding: 16,
@@ -741,7 +852,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         backgroundColor: '#f8fafc',
                         borderRadius: 10,
                         border: '1px solid #edf2f7'
-                      }}>
+                      }} data-admin-ui="grid grid-fixed">
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ height: 22, borderRadius: 6, backgroundColor: palette.primary, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }} />
                           <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#334155', marginTop: 3 }}>Primária</span>
@@ -780,7 +891,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 </p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }} data-admin-ui="grid">
                 {STANDARD_PALETTES.map((preset) => {
                   const isSelected =
                     currentPaletteId === preset.id ||
@@ -789,6 +900,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   return (
                     <button
                       key={preset.id}
+                      aria-label={`Usar paleta ${preset.name}`}
+                      aria-pressed={isSelected}
                       type="button"
                       onClick={() => handleSelectPalette(preset)}
                       style={{
@@ -803,7 +916,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         textAlign: 'left',
                         transition: 'all 0.15s ease'
                       }}
-                    >
+                     data-admin-ui="button">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
                         <span style={{ fontSize: '0.78rem', fontWeight: isSelected ? 800 : 700, color: '#1e293b' }}>
                           {preset.name}
@@ -828,7 +941,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
             </div>
 
             {/* SEÇÃO 3: AJUSTE FINO DOS 4 TOKENS & DEMONSTRAÇÃO AO VIVO */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'start' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20, alignItems: 'start' }} data-admin-ui="grid">
               {/* Left: 4 Fine-tuning Inputs */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -836,7 +949,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   <span>Ajuste Fino dos 4 Tokens de Cor (Códigos HEX)</span>
                 </h4>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }} data-admin-ui="grid grid-fixed">
                   {/* Token 1: Primária */}
                   <div style={{ padding: 12, backgroundColor: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
                     <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: '#334155', marginBottom: 6 }}>
@@ -857,7 +970,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         maxLength={7}
                         className="form-input"
                         style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.85rem', height: 34, padding: '4px 8px' }}
-                      />
+                       data-admin-ui="field"/>
                     </div>
                   </div>
 
@@ -881,7 +994,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         maxLength={7}
                         className="form-input"
                         style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.85rem', height: 34, padding: '4px 8px' }}
-                      />
+                       data-admin-ui="field"/>
                     </div>
                   </div>
 
@@ -905,7 +1018,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         maxLength={7}
                         className="form-input"
                         style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.85rem', height: 34, padding: '4px 8px' }}
-                      />
+                       data-admin-ui="field"/>
                     </div>
                   </div>
 
@@ -929,7 +1042,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         maxLength={7}
                         className="form-input"
                         style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.85rem', height: 34, padding: '4px 8px' }}
-                      />
+                       data-admin-ui="field"/>
                     </div>
                   </div>
                 </div>
@@ -961,7 +1074,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   backgroundColor: '#ffffff',
                   boxShadow: '0 6px 20px rgba(0,0,0,0.06)',
                   border: '1px solid #e2e8f0'
-                }}>
+                }} data-admin-ui="panel">
                   {/* Top Header */}
                   <div style={{
                     background: `linear-gradient(135deg, ${currentColor} 0%, var(--color-primary-dark) 100%)`,
@@ -988,7 +1101,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   {/* Body Preview */}
                   <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, backgroundColor: currentBgLight }}>
                     {/* Categories Row */}
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} data-admin-ui="toolbar">
                       <span style={{ backgroundColor: currentColor, color: '#fff', padding: '4px 12px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700 }}>
                         Todos
                       </span>
@@ -1022,7 +1135,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: 12
-                    }}>
+                    }} data-admin-ui="panel">
                       <div>
                         <strong style={{ fontSize: '0.82rem', color: currentTextDark, display: 'block' }}>
                           Cento de Salgados Sortidos
@@ -1049,7 +1162,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           boxShadow: `0 2px 8px ${currentColor}35`,
                           whiteSpace: 'nowrap'
                         }}
-                      >
+                       data-admin-ui="button">
                         + Adicionar
                       </button>
                     </div>
@@ -1064,8 +1177,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {/* TAB 3: SONS & ALERTAS DE PEDIDOS */}
         {/* ========================================================================= */}
         {activeSection === 'sounds' && (
-          <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+          <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }} data-admin-ui="toolbar">
               <div>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Volume2 size={20} style={{ color: 'var(--color-primary, #dc2626)' }} />
@@ -1102,7 +1215,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     position: 'relative',
                     transition: 'background-color 0.2s ease'
                   }}
-                >
+                 data-admin-ui="button">
                   <span style={{
                     position: 'absolute',
                     top: 2,
@@ -1128,7 +1241,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 display: 'grid',
                 gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
                 gap: 12
-              }}>
+              }} data-admin-ui="grid">
                 {SOUND_TYPES.map(sound => {
                   const isSelected = (formData.order_sound_type || 'bell') === sound.id;
                   const isPreviewing = playingPreviewId === sound.id;
@@ -1203,7 +1316,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                             fontWeight: 700,
                             cursor: 'pointer'
                           }}
-                        >
+                         data-admin-ui="button">
                           {isPreviewing ? <Square size={12} fill="#dc2626" /> : <Play size={12} fill="#334155" />}
                           <span>{isPreviewing ? 'Parar' : 'Ouvir Teste'}</span>
                         </button>
@@ -1223,7 +1336,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               backgroundColor: '#f8fafc',
               borderRadius: 14,
               border: '1px solid #e2e8f0'
-            }}>
+            }} data-admin-ui="grid">
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <label style={{ fontSize: '0.84rem', fontWeight: 800, color: '#334155', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1243,7 +1356,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   onChange={(e) => handleChange('order_sound_duration', parseInt(e.target.value, 10))}
                   style={{ width: '100%', accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }} data-admin-ui="toolbar">
                   {[2, 5, 10, 15, 20, 30].map(sec => (
                     <button
                       key={sec}
@@ -1259,7 +1372,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                         fontWeight: 800,
                         cursor: 'pointer'
                       }}
-                    >
+                     data-admin-ui="button">
                       {sec}s{sec === 5 ? ' (Padrão)' : ''}
                     </button>
                   ))}
@@ -1304,7 +1417,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     justifyContent: 'center',
                     gap: 6
                   }}
-                >
+                 data-admin-ui="button">
                   {playingPreviewId ? <Square size={13} fill="#fff" /> : <Play size={13} fill="#fff" />}
                   <span>{playingPreviewId ? 'Parar Teste de Som' : `Testar Toque Completo (${formData.order_sound_duration || 5}s)`}</span>
                 </button>
@@ -1317,8 +1430,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {/* TAB 4: COMANDA TÉRMICA & IMPRESSÃO */}
         {/* ========================================================================= */}
         {activeSection === 'printer' && (
-          <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+          <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 20 }} data-admin-ui="toolbar">
               <div>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Printer size={20} style={{ color: 'var(--color-primary, #dc2626)' }} />
@@ -1345,13 +1458,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   fontWeight: 800,
                   cursor: 'pointer'
                 }}
-              >
+               data-admin-ui="button">
                 <Printer size={15} />
                 <span>Testar Impressão Agora</span>
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20 }} data-admin-ui="grid">
               {/* Form Controls */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 
@@ -1378,7 +1491,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           cursor: 'pointer',
                           transition: 'all 0.15s ease'
                         }}
-                      >
+                       data-admin-ui="button">
                         {w} {w === '80mm' ? '(Padrão / Mais Larga)' : '(Mini / Portátil)'}
                       </button>
                     ))}
@@ -1412,7 +1525,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       backgroundColor: '#ffffff',
                       borderRadius: 8,
                       border: '1px dashed #cbd5e1'
-                    }}>
+                    }} data-admin-ui="panel">
                       <div style={{
                         width: 72,
                         height: 72,
@@ -1447,7 +1560,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           )}
                         </div>
 
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} data-admin-ui="toolbar">
                           <label style={{
                             display: 'inline-flex',
                             alignItems: 'center',
@@ -1487,9 +1600,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                                 fontWeight: 600,
                                 cursor: 'pointer'
                               }}
-                            >
+                             data-admin-ui="button">
                               <RotateCcw size={12} />
-                              <span>Restaurar Padrão</span>
+                              <span>Sobre restauração</span>
                             </button>
                           )}
                         </div>
@@ -1567,7 +1680,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           placeholder="Ex: QUEM NÃO GOSTA? • MELHOR SALGADO"
                           className="form-input"
                           style={{ fontSize: '0.82rem', padding: '7px 10px' }}
-                        />
+                         data-admin-ui="field"/>
                       )}
                     </div>
                   </div>
@@ -1635,7 +1748,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           placeholder="Ex: Alfa Salgados • Os melhores sabores se faz com carinho!"
                           className="form-input"
                           style={{ fontSize: '0.82rem', padding: '7px 10px' }}
-                        />
+                         data-admin-ui="field"/>
                       )}
                     </div>
 
@@ -1655,9 +1768,47 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
               {/* Live Preview Mockup */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#1e293b' }}>
-                  Prévia em Tempo Real ({formData.printer_paper_width || '80mm'}):
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 800, color: '#1e293b' }}>
+                    Prévia em Tempo Real ({formData.printer_paper_width || '80mm'}):
+                  </span>
+                  <div style={{ display: 'flex', gap: 4, background: '#e2e8f0', padding: 2, borderRadius: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewScheduledOrder(false)}
+                      style={{
+                        border: 'none',
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: !previewScheduledOrder ? 'var(--color-primary, #dc2626)' : 'transparent',
+                        color: !previewScheduledOrder ? '#ffffff' : '#475569'
+                      }}
+                      data-admin-ui="button"
+                    >
+                      Imediato
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewScheduledOrder(true)}
+                      style={{
+                        border: 'none',
+                        padding: '3px 8px',
+                        borderRadius: 4,
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: previewScheduledOrder ? 'var(--color-primary, #dc2626)' : 'transparent',
+                        color: previewScheduledOrder ? '#ffffff' : '#475569'
+                      }}
+                      data-admin-ui="button"
+                    >
+                      Agendamento
+                    </button>
+                  </div>
+                </div>
                 <div style={{
                   backgroundColor: '#334155',
                   borderRadius: 12,
@@ -1676,7 +1827,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     color: '#000000',
                     boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
                     borderRadius: 2
-                  }}>
+                  }} data-admin-ui="panel">
                     {/* Header: Logo */}
                     {(formData.printer_include_logo ?? true) && (formData.printer_logo_url || formData.logo_url) && (
                       <div style={{ textAlign: 'center', marginBottom: 6 }}>
@@ -1745,8 +1896,38 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
                     {/* Order Number & Type */}
                     <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 'bold' }}>PEDIDO #026</div>
-                    <div style={{ textAlign: 'center', fontSize: 9 }}>29/09/2026, 19:15:00</div>
-                    <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 'bold', marginTop: 2 }}>*** ENTREGA EM DOMICÍLIO ***</div>
+
+                    {previewScheduledOrder ? (
+                      <div style={{
+                        border: '2px solid #000',
+                        padding: '5px 3px',
+                        margin: '5px 0',
+                        textAlign: 'center',
+                        backgroundColor: '#f8fafc'
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: 0.5 }}>
+                          *** PEDIDO AGENDADO ***
+                        </div>
+                        <div style={{ fontSize: 9, marginTop: 2 }}>
+                          <strong>Pedido feito em:</strong> 29/09/2026 às 19:15
+                        </div>
+                        <div style={{ borderTop: '1px dashed #000', margin: '4px 0' }} />
+                        <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}>
+                          📅 ENTREGA AGENDADA PARA:
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 900, marginTop: 2 }}>
+                          Data: 30/09/2026
+                        </div>
+                        <div style={{ fontSize: 11, fontWeight: 900 }}>
+                          Horário: 18:30
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ textAlign: 'center', fontSize: 9, marginTop: 2 }}>29/09/2026, 19:15:00</div>
+                        <div style={{ textAlign: 'center', fontSize: 9, fontWeight: 'bold', marginTop: 2 }}>*** ENTREGA EM DOMICÍLIO ***</div>
+                      </>
+                    )}
 
                     <div style={{ borderTop: '1px dashed #000', margin: '6px 0' }} />
 
@@ -1838,7 +2019,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {activeSection === 'payments' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Chave Pix */}
-            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
                 <QrCode size={18} style={{ color: 'var(--color-primary-dark, #dc2626)' }} />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -1846,7 +2027,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 </h3>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }} data-admin-ui="grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                     Chave Pix (CNPJ, Telefone, E-mail ou Aleatória) *
@@ -1857,7 +2038,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.pix_key}
                     onChange={(e) => handleChange('pix_key', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -1870,7 +2051,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.pix_recipient_name}
                     onChange={(e) => handleChange('pix_recipient_name', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 <div>
@@ -1883,13 +2064,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                     value={formData.pix_recipient_city}
                     onChange={(e) => handleChange('pix_recipient_city', e.target.value)}
                     className="form-input"
-                  />
+                   data-admin-ui="field"/>
                 </div>
               </div>
             </div>
 
             {/* Formas de Pagamento Aceitas */}
-            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                 <CreditCard size={18} style={{ color: 'var(--color-primary-dark, #dc2626)' }} />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
@@ -1900,7 +2081,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 Marque quais métodos seus clientes podem escolher na finalização do pedido:
               </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }} data-admin-ui="grid">
                 {[
                   { id: 'payment_pix', label: 'Pix Instantâneo' },
                   { id: 'payment_cash', label: 'Dinheiro (Espécie)' },
@@ -1940,8 +2121,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {/* TAB 6: HORÁRIOS DE FUNCIONAMENTO SEMANAL */}
         {/* ========================================================================= */}
         {activeSection === 'schedule' && (
-          <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+          <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }} data-admin-ui="toolbar">
               <div>
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Clock size={20} style={{ color: 'var(--color-primary-dark, #dc2626)' }} />
@@ -1969,7 +2150,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   cursor: 'pointer'
                 }}
                 title="Aplica o horário de Segunda-feira para todos os outros dias"
-              >
+               data-admin-ui="button">
                 <Copy size={13} />
                 <span>Copiar Segunda para Todos</span>
               </button>
@@ -1983,6 +2164,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 return (
                   <div
                     key={dayStr}
+                    className="settings-schedule-row"
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1994,7 +2176,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       flexWrap: 'wrap',
                       gap: 10
                     }}
-                  >
+                   data-admin-ui="toolbar">
                     <div style={{ width: 140, fontWeight: 800, color: schedule?.isOpen ? '#0f172a' : '#94a3b8' }}>
                       {dayLabel}
                     </div>
@@ -2003,6 +2185,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.84rem', cursor: 'pointer', fontWeight: 700 }}>
                         <input
                           type="checkbox"
+                          aria-label={`Loja aberta — ${dayLabel}`}
                           checked={schedule?.isOpen ?? true}
                           onChange={(e) => handleScheduleChange(dayStr, 'isOpen', e.target.checked)}
                           style={{ accentColor: 'var(--color-primary, #dc2626)' }}
@@ -2015,20 +2198,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       {schedule?.isOpen && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.84rem' }}>
                           <input
+                            aria-label={`Abertura — ${dayLabel}`}
                             type="time"
                             value={schedule.open || '10:00'}
                             onChange={(e) => handleScheduleChange(dayStr, 'open', e.target.value)}
                             className="form-input"
                             style={{ padding: '4px 8px', width: 95, fontSize: '0.82rem', fontWeight: 700 }}
-                          />
+                           data-admin-ui="field"/>
                           <span style={{ color: '#64748b' }}>às</span>
                           <input
+                            aria-label={`Fechamento — ${dayLabel}`}
                             type="time"
                             value={schedule.close || '22:00'}
                             onChange={(e) => handleScheduleChange(dayStr, 'close', e.target.value)}
                             className="form-input"
                             style={{ padding: '4px 8px', width: 95, fontSize: '0.82rem', fontWeight: 700 }}
-                          />
+                           data-admin-ui="field"/>
                         </div>
                       )}
                     </div>
@@ -2038,7 +2223,236 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
             </div>
           </div>
         )}
+
+        {/* ========================================================================= */}
+        {/* TAB 7: PROGRAMA DE FIDELIDADE POR PONTOS */}
+        {/* ========================================================================= */}
+        {activeSection === 'audit' && (
+          <div style={{ padding: 24, background: '#fff', borderRadius: 12, marginTop: 20 }} data-admin-ui="panel">
+            <h3>Auditoria administrativa</h3>
+            <p>Consulta somente leitura dos eventos registrados pelo sistema. Exibe até 200 eventos recentes por consulta; o CSV exporta até 1.000. O histórico anterior é preservado.</p>
+            <p>O registro atual identifica ação e recurso, mas não guarda a identidade individual do operador. Não atribuímos ações a pessoas sem evidência.</p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'end', marginBottom: 16 }} data-admin-ui="toolbar">
+              <label>De <input type="date" value={auditFrom} onChange={e => setAuditFrom(e.target.value)}  data-admin-ui="field"/></label>
+              <label>Até <input type="date" value={auditTo} onChange={e => setAuditTo(e.target.value)}  data-admin-ui="field"/></label>
+              <label>Ação <input type="text" placeholder="Ex.: order_payment" value={auditAction} onChange={e => setAuditAction(e.target.value)}  data-admin-ui="field"/></label>
+              <button type="button" onClick={refreshAudit} data-admin-ui="button">Consultar</button>
+              <a href={'/api/admin/audit.csv?' + auditQuery()} download="auditoria-alfa.csv">Exportar CSV</a>
+            </div>
+            {auditError && <p role="alert" style={{ color: '#b91c1c' }}>{auditError}</p>}
+            {auditLoaded && <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Tabela de dados — role para ver todas as colunas" data-admin-ui="table-scroll">
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead><tr><th style={{padding:8}}>Data/hora</th><th style={{padding:8}}>Ação</th><th style={{padding:8}}>Recurso</th></tr></thead>
+                <tbody>{auditRows.map(row => <tr key={row.id} style={{ borderTop: '1px solid #e2e8f0' }}>
+                  <td style={{padding:8,whiteSpace:'nowrap'}}>{new Date(row.at).toLocaleString('pt-BR')}</td>
+                  <td style={{padding:8}}>{row.action}</td><td style={{padding:8,wordBreak:'break-word'}}>{row.resource}</td>
+                </tr>)}</tbody>
+              </table>
+              {auditRows.length === 0 && <p>Nenhum evento encontrado para esses filtros.</p>}
+            </div>}
+          </div>
+        )}
+        {activeSection === 'backup' && (
+          <div style={{ padding: 24, background: '#fff', borderRadius: 12, marginTop: 20 }} data-admin-ui="panel">
+            <h3>Backup e integridade do banco SQLite</h3>
+            <p>Os backups são criados no servidor, na pasta <code>backups</code>. Baixe e guarde uma cópia em outro local.</p>
+            <p><strong>Restauração automática desativada:</strong> para evitar perda acidental de dados.</p>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }} data-admin-ui="toolbar">
+              <button type="button" onClick={refreshBackups} data-admin-ui="button">Atualizar histórico</button>
+              <button type="button" onClick={refreshHealth} data-admin-ui="button">Diagnóstico do sistema</button>
+              <button type="button" disabled={backupBusy} onClick={createBackup} data-admin-ui="button">Criar backup agora</button>
+              <button type="button" disabled={backupBusy} onClick={verifyDatabase} data-admin-ui="button">Verificar integridade</button>
+            </div>
+            {systemHealth && <div style={{ padding: 16, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16 }}>
+              <h4>Saúde do sistema</h4>
+              <p>Banco: {systemHealth.database} — Integridade rápida: <strong>{systemHealth.integrityOk ? 'OK' : 'ATENÇÃO'}</strong></p>
+              <p>Último backup: {systemHealth.lastBackupAt ? new Date(systemHealth.lastBackupAt).toLocaleString('pt-BR') : 'Nenhum'} — Total: {systemHealth.backupCount}</p>
+              {systemHealth.backupStale && <p style={{ color: '#b45309' }}>Atenção: backup ausente ou com mais de 7 dias.</p>}
+              <h4>Política de retenção (sem exclusão automática)</h4>
+              <label>Quantidade de cópias a manter como referência: <select value={retentionKeep} onChange={e => setRetentionKeep(Number(e.target.value))} data-admin-ui="field">
+                {[5, 10, 20, 30, 50].map(n => <option key={n} value={n}>{n} backups</option>)}
+              </select></label>
+              <button type="button" disabled={backupBusy} onClick={saveRetention} style={{ marginLeft: 12 }} data-admin-ui="button">Salvar preferência</button>
+              <p>{systemHealth.excessBackups} backup(s) acima da preferência. Nenhum arquivo será excluído automaticamente.</p>
+            </div>}
+            {backupMessage && <p role="status">{backupMessage}</p>}
+            {backupData?.stale && <p style={{ color: '#b45309', fontWeight: 700 }}>Atenção: não há backup recente (últimos 7 dias).</p>}
+            {backupData && <div>
+              <h4>Histórico de backups</h4>
+              {backupData.files.length === 0 ? <p>Nenhum backup registrado.</p> : backupData.files.map(file => (
+                <div key={file.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: 10, borderBottom: '1px solid #e5e7eb' }}>
+                  <span>{new Date(file.createdAt).toLocaleString('pt-BR')} — {(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                  <a href={'/api/admin/backups/download/' + encodeURIComponent(file.name)}>Baixar</a>
+                </div>
+              ))}
+            </div>}
+          </div>
+        )}
+        {activeSection === 'loyalty' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Status Geral do Programa */}
+            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }} data-admin-ui="toolbar">
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                    <Award size={22} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span>Programa de Fidelidade por Pontos</span>
+                  </h3>
+                  <p style={{ fontSize: '0.84rem', color: '#64748b', marginTop: 4 }}>
+                    Estimule compras recorrentes com acúmulo de pontos e travas inteligentes de proteção de margem.
+                  </p>
+                </div>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={formData.loyalty_enabled ?? true}
+                    onChange={(e) => handleChange('loyalty_enabled', e.target.checked)}
+                    style={{ accentColor: 'var(--color-primary, #dc2626)', width: 18, height: 18 }}
+                  />
+                  <span style={{ color: (formData.loyalty_enabled ?? true) ? '#16a34a' : '#94a3b8' }}>
+                    {(formData.loyalty_enabled ?? true) ? 'Programa Ativo' : 'Programa Desativado'}
+                  </span>
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }} data-admin-ui="grid">
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Nome do Programa
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.loyalty_program_name || 'Clube de Pontos'}
+                    onChange={(e) => handleChange('loyalty_program_name', e.target.value)}
+                    className="form-input"
+                    placeholder="Ex: Clube de Pontos"
+                   data-admin-ui="field"/>
+                  <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 4, display: 'block' }}>
+                    Exibido no cartão virtual e alertas aos clientes.
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Pontos para Resgatar a Recompensa
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={formData.loyalty_points_goal ?? 100}
+                    onChange={(e) => handleChange('loyalty_points_goal', parseInt(e.target.value) || 100)}
+                    className="form-input"
+                   data-admin-ui="field"/>
+                  <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 4, display: 'block' }}>
+                    Pontos necessários para liberar o desconto (padrão: 100).
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Pedido Mínimo para Pontuar (R$) 🛡️
+                  </label>
+                  <input
+                    type="number"
+                    step="0.50"
+                    min={0}
+                    value={formData.loyalty_min_order_value ?? 45}
+                    onChange={(e) => handleChange('loyalty_min_order_value', parseFloat(e.target.value) || 0)}
+                    className="form-input"
+                   data-admin-ui="field"/>
+                  <span style={{ fontSize: '0.74rem', color: '#b45309', marginTop: 4, display: 'block' }}>
+                    Trava essencial: evita que clientes comprem só refrigerante para juntar pontos.
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Desconto da Recompensa (%)
+                  </label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={100}
+                    value={formData.loyalty_discount_percent ?? 50}
+                    onChange={(e) => handleChange('loyalty_discount_percent', parseInt(e.target.value) || 50)}
+                    className="form-input"
+                   data-admin-ui="field"/>
+                  <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 4, display: 'block' }}>
+                    % de desconto aplicado no pedido premiado (ex: 50%).
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Teto Máximo de Desconto (R$) 🛡️
+                  </label>
+                  <input
+                    type="number"
+                    step="0.50"
+                    min={1}
+                    value={formData.loyalty_max_discount_value ?? 35}
+                    onChange={(e) => handleChange('loyalty_max_discount_value', parseFloat(e.target.value) || 35)}
+                    className="form-input"
+                   data-admin-ui="field"/>
+                  <span style={{ fontSize: '0.74rem', color: '#b45309', marginTop: 4, display: 'block' }}>
+                    Trava de margem: se o cliente pedir R$ 200, o desconto não passa deste teto.
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                    Pontos por R$ 1 de Compra
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={formData.loyalty_points_per_real ?? 1}
+                    onChange={(e) => handleChange('loyalty_points_per_real', parseInt(e.target.value) || 1)}
+                    className="form-input"
+                   data-admin-ui="field"/>
+                  <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 4, display: 'block' }}>
+                    Pontos por real do subtotal de cada pedido elegível. Pontos não expiram.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quadro Explicativo de Travas de Margem */}
+            <div style={{
+              padding: 20,
+              borderRadius: 14,
+              backgroundColor: '#fffbeb',
+              border: '1px solid #fef3c7',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
+            }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#92400e', margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>🛡️ Como as Travas Protegem o Seu Lucro</span>
+              </h4>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: '0.84rem', color: '#78350f', lineHeight: 1.6 }}>
+                <li>
+                  <strong>Ticket Mínimo (R$ {(formData.loyalty_min_order_value ?? 45).toFixed(2)}):</strong> Só gera pontos quando o cliente consome um valor significativo, garantindo rentabilidade acumulada antes de qualquer premiação.
+                </li>
+                <li>
+                  <strong>Teto Máximo de Desconto (R$ {(formData.loyalty_max_discount_value ?? 35).toFixed(2)}):</strong> Impede que pedidos gigantescos tenham descontos excessivos em reais, blindando a margem operacional.
+                </li>
+                <li>
+                  <strong>Não Cumulativo:</strong> O sistema bloqueia automaticamente o uso conjunto da recompensa de fidelidade com outros cupons promocionais.
+                </li>
+                <li>
+                  <strong>Saldo de Pontos:</strong> O cliente visualiza seus pontos em tempo real tanto no carrinho quanto no acompanhamento do pedido.
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+        {!['backup','audit'].includes(activeSection)&&<div className="settings-save-footer"><p>Salvar alterações aplica os ajustes de todas as seções editadas.</p><button type="submit" className="btn btn-primary" data-admin-ui="button"><Save size={16}/> Salvar configurações</button></div>}
       </form>
     </div>
+    </fieldset>
   );
 };

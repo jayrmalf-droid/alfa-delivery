@@ -1,0 +1,7 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';
+const compile=f=>ts.transpileModule(fs.readFileSync(new URL('../src/domain/'+f,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext}}).outputText;
+const url=c=>`data:text/javascript;base64,${Buffer.from(c).toString('base64')}`;
+const {sortCatalog}=await import(url(compile('catalogBrowse.ts').replace("'./rules'",JSON.stringify(url(compile('rules.ts'))))));
+const products=[{name:'Coxinha',price:20,promo_price:5},{name:'Pastel',price:10},{name:'Bolinho',price:15,promo_price:0}];
+test('ordenação considera promoção válida e preserva dados originais',()=>{const before=structuredClone(products);assert.deepEqual(sortCatalog(products,'priceAsc').map(p=>p.name),['Coxinha','Pastel','Bolinho']);assert.deepEqual(sortCatalog(products,'priceDesc').map(p=>p.name),['Bolinho','Pastel','Coxinha']);assert.deepEqual(products,before);});
+test('ordem original e ordem alfabética são independentes e preços empatados têm desempate por nome',()=>{assert.deepEqual(sortCatalog(products,'recommended'),products);assert.notEqual(sortCatalog(products,'recommended'),products);assert.deepEqual(sortCatalog(products,'name').map(p=>p.name),['Bolinho','Coxinha','Pastel']);assert.deepEqual(sortCatalog([{name:'B',price:10},{name:'A',price:10,promo_price:12}],'priceAsc').map(p=>p.name),['A','B']);});

@@ -1,5 +1,6 @@
 import { CATALOG_KEYS, type ProductBundle } from '../domain/catalog';
 export const cache: Record<string, any> = {};
+const confirmed: Record<string, any> = {};
 const versions: Record<string, number> = {};
 const writeGenerations: Record<string, number> = {};
 const trackingTokens: Record<string, string> = {};
@@ -18,7 +19,8 @@ export async function request(path: string, options: RequestInit = {}) {
 }
 function apply(data: any) {
   admin = !!data.admin;
-  if (!admin) { for (const key of ['alfa_coupons','alfa_customers']) cache[key]=[]; data.data.alfa_orders=Object.values(customerOrders).sort((a:any,b:any)=>b.order_number-a.order_number); }
+  if (!admin) { for (const key of ['alfa_coupons','alfa_customers','alfa_sales','alfa_customer_profiles','alfa_expenses','alfa_cash_closures','alfa_sales_goals']) cache[key]=[]; data.data.alfa_orders=Object.values(customerOrders).sort((a:any,b:any)=>b.order_number-a.order_number); }
+  Object.assign(confirmed, structuredClone(data.data));
   Object.assign(cache, data.data); Object.assign(versions, data.versions); emit();
 }
 export async function refresh() { await writes; apply(await request('/bootstrap')); }
@@ -31,29 +33,36 @@ export async function login(email: string, password: string) {
 }
 export async function logout() {
   await writes; await request('/logout', { method: 'POST', body: '{}' });
-  for (const key of ['alfa_orders','alfa_customers','alfa_coupons']) cache[key] = [];
+  for (const key of ['alfa_orders','alfa_customers','alfa_coupons','alfa_sales','alfa_customer_profiles','alfa_expenses','alfa_cash_closures','alfa_sales_goals']) cache[key] = [];
   await refresh();
 }
-export function saveRemote(key: string, value: any) {
+export function saveRemote(key: string, value: any): Promise<void> {
   if (!admin) throw new Error('Entre no painel para alterar os dados da loja.');
   const generation = writeGenerations[key] || 0;
   const snapshot = structuredClone(value); cache[key] = snapshot; emit();
   window.dispatchEvent(new CustomEvent('alfa-save', { detail: { status: 'saving' } }));
-  writes = writes.then(async () => {
+  const operation = writes.then(async () => {
     if (generation !== (writeGenerations[key] || 0)) {
-      window.dispatchEvent(new CustomEvent('alfa-save', { detail: { status: 'error', message: 'Uma alteração anterior não foi salva. Confira os dados atualizados antes de tentar novamente.' } }));
-      return;
+      const error = new Error('Uma alteração anterior não foi salva. Confira os dados atualizados antes de tentar novamente.');
+      window.dispatchEvent(new CustomEvent('alfa-save', { detail: { status: 'error', message: error.message } }));
+      throw error;
     }
     try {
       const data = await request(`/data/${key}`, { method: 'PUT', body: JSON.stringify({ value: snapshot, version: versions[key] }) });
       versions[key] = data.version;
+      confirmed[key] = structuredClone(snapshot);
       window.dispatchEvent(new CustomEvent('alfa-save', { detail: { status: 'saved' } }));
     } catch (error) {
       writeGenerations[key] = generation + 1;
-      apply(await request('/bootstrap').catch(() => ({ admin, data: {}, versions: {} })));
+      try { apply(await request('/bootstrap')); }
+      catch { cache[key] = structuredClone(confirmed[key]); emit(); }
       window.dispatchEvent(new CustomEvent('alfa-save', { detail: { status: 'error', message: error instanceof Error ? error.message : 'Falha ao salvar.' } }));
+      throw error;
     }
   });
+  // Handle the queue separately so callers can await this specific write.
+  writes = operation.catch(() => {});
+  return operation;
 }
 export async function createRemoteOrder(payload: any, idempotencyKey: string) {
   const order = await request('/orders', { method: 'POST', body: JSON.stringify({ ...payload, idempotency_key: idempotencyKey }) });
@@ -89,6 +98,7 @@ export async function trackedOrder(id: string) {
   customerOrders[id]=order; return order;
 }
 export async function quote(payload: any) { return request('/quote', { method: 'POST', body: JSON.stringify(payload) }); }
+export async function fetchLoyaltyStatus(phone: string) { return request(`/loyalty?phone=${encodeURIComponent(phone)}`); }
 
 export function catalogVersions() { return Object.fromEntries(CATALOG_KEYS.map(key=>[key,versions[key]])); }
 export function saveProductBundle(bundle:ProductBundle, expectedVersions:Record<string,number>) : Promise<void> {

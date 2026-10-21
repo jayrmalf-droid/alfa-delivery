@@ -1,3 +1,5 @@
+import { useDialog } from '../../utils/useDialog';
+import { useConfirmedSave } from '../../utils/useConfirmedSave';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Neighborhood } from '../../types';
 import { StorageService, subscribeToStorage } from '../../services/storageService';
@@ -28,6 +30,7 @@ interface NeighborhoodsTabProps {
 }
 
 export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhoods: propNeighborhoods }) => {
+  const { saving, saveError, runSave } = useConfirmedSave();
   // Live neighborhoods state
   const [neighborhoods, setNeighborhoods] = useState<Neighborhood[]>(() => {
     return propNeighborhoods && propNeighborhoods.length > 0 ? propNeighborhoods : StorageService.getNeighborhoods();
@@ -146,7 +149,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
   };
 
   // Save (Create or Update)
-  const handleSaveNeighborhood = (e: React.FormEvent) => {
+  const handleSaveNeighborhood = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) {
       alert('Por favor, informe o nome do bairro.');
@@ -166,7 +169,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         notes: formNotes.trim() || undefined,
         updated_at: new Date().toISOString()
       };
-      StorageService.upsertNeighborhood(updated);
+      if (!await runSave(() => StorageService.upsertNeighborhood(updated))) return;
       showToast(`Bairro "${updated.name}" atualizado com sucesso!`);
     } else {
       // Create new
@@ -180,7 +183,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         notes: formNotes.trim() || undefined,
         created_at: new Date().toISOString()
       };
-      StorageService.upsertNeighborhood(created);
+      if (!await runSave(() => StorageService.upsertNeighborhood(created))) return;
       showToast(`Bairro "${created.name}" cadastrado com sucesso!`);
     }
 
@@ -188,12 +191,12 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
   };
 
   // Quick Toggle Availability
-  const handleToggleAvailability = (item: Neighborhood) => {
+  const handleToggleAvailability = async (item: Neighborhood) => {
     const updated: Neighborhood = {
       ...item,
       is_available: !(item.is_available !== false)
     };
-    StorageService.upsertNeighborhood(updated);
+    if (!await runSave(() => StorageService.upsertNeighborhood(updated))) return;
     showToast(
       updated.is_available
         ? `Bairro "${updated.name}" agora está ATIVO para entregas.`
@@ -202,27 +205,27 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
   };
 
   // Quick Inline Fee Save
-  const handleSaveQuickFee = (item: Neighborhood) => {
+  const handleSaveQuickFee = async (item: Neighborhood) => {
     const feeNum = parseFloat(quickFeeValue.replace(',', '.')) || 0;
     const updated: Neighborhood = {
       ...item,
       delivery_fee: feeNum
     };
-    StorageService.upsertNeighborhood(updated);
+    if (!await runSave(() => StorageService.upsertNeighborhood(updated))) return;
     setQuickEditingId(null);
     showToast(`Taxa de "${updated.name}" alterada para ${formatCurrency(feeNum)}!`);
   };
 
   // Delete Neighborhood
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingNeighborhood) return;
-    StorageService.deleteNeighborhood(deletingNeighborhood.id);
+    if (!await runSave(() => StorageService.deleteNeighborhood(deletingNeighborhood.id))) return;
     showToast(`Bairro "${deletingNeighborhood.name}" foi excluído.`);
     setDeletingNeighborhood(null);
   };
 
   // Bulk Fee Adjust
-  const handleApplyBulkAdjustment = (e: React.FormEvent) => {
+  const handleApplyBulkAdjustment = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(bulkAdjustmentValue.replace(',', '.')) || 0;
     if (val <= 0 && bulkAdjustmentType !== 'fixed') {
@@ -246,7 +249,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
       };
     });
 
-    StorageService.saveNeighborhoods(updatedList);
+    if (!await runSave(() => StorageService.saveNeighborhoods(updatedList))) return;
     setIsBulkModalOpen(false);
     showToast(
       bulkAdjustmentType === 'fixed'
@@ -255,7 +258,12 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
     );
   };
 
+  useDialog(isModalOpen || isBulkModalOpen || !!deletingNeighborhood, () => { if (saving) return; setIsModalOpen(false); setIsBulkModalOpen(false); setDeletingNeighborhood(null); });
+
   return (
+    <fieldset disabled={saving} aria-busy={saving} className="confirmed-save-fields admin-neighborhoods-polish">
+      {saveError && <p role="alert" className="confirmed-save-error">{saveError}</p>}
+      {saving && <p role="status">Aguardando confirmação de gravação…</p>}
     <div style={{
       padding: '24px',
       display: 'flex',
@@ -267,7 +275,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
     }}>
       {/* Toast Feedback */}
       {toastMessage && (
-        <div style={{
+        <div className="neighborhood-toast" role="status" style={{
           position: 'fixed',
           bottom: 24,
           right: 24,
@@ -290,15 +298,16 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
       )}
 
       {/* 1. TOP HEADER & PRIMARY ACTIONS */}
-      <div style={{
+      <div className="admin-section-heading campaign-heading" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: 16
-      }}>
+      }} data-admin-ui="toolbar">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="admin-section-eyebrow">REGIÕES ATENDIDAS</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <h2 style={{ fontSize: '1.6rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.02em' }}>
               Bairros & Taxas de Entrega
             </h2>
@@ -321,7 +330,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         </div>
 
         {/* Action Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="admin-section-actions" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} data-admin-ui="toolbar">
           <button
             onClick={() => setIsBulkModalOpen(true)}
             style={{
@@ -339,7 +348,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               transition: 'all 0.15s ease'
             }}
             title="Ajustar ou aumentar a taxa de todos os bairros de uma vez"
-          >
+           data-admin-ui="button">
             <SlidersHorizontal size={16} />
             <span>Ajuste em Massa</span>
           </button>
@@ -357,7 +366,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               fontWeight: 800,
               boxShadow: '0 4px 12px rgba(220, 38, 38, 0.25)'
             }}
-          >
+           data-admin-ui="button">
             <Plus size={18} />
             <span>Novo Bairro</span>
           </button>
@@ -365,11 +374,11 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
       </div>
 
       {/* 2. STATS & KPIS CARDS */}
-      <div style={{
+      <div className="campaign-metrics" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
         gap: 14
-      }}>
+      }} data-admin-ui="grid">
         {/* Total Bairros */}
         <div className="card" style={{
           padding: '16px 18px',
@@ -379,7 +388,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           display: 'flex',
           alignItems: 'center',
           gap: 14
-        }}>
+        }} data-admin-ui="panel">
           <div style={{
             width: 44,
             height: 44,
@@ -410,7 +419,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           display: 'flex',
           alignItems: 'center',
           gap: 14
-        }}>
+        }} data-admin-ui="panel">
           <div style={{
             width: 44,
             height: 44,
@@ -441,7 +450,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           display: 'flex',
           alignItems: 'center',
           gap: 14
-        }}>
+        }} data-admin-ui="panel">
           <div style={{
             width: 44,
             height: 44,
@@ -472,7 +481,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           display: 'flex',
           alignItems: 'center',
           gap: 14
-        }}>
+        }} data-admin-ui="panel">
           <div style={{
             width: 44,
             height: 44,
@@ -496,7 +505,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
       </div>
 
       {/* 3. FILTERS, SEARCH & SORT BAR */}
-      <div style={{
+      <div className="campaign-filterbar neighborhood-filterbar" style={{
         backgroundColor: '#ffffff',
         padding: '14px 18px',
         borderRadius: 14,
@@ -506,12 +515,12 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: 12
-      }}>
+      }} data-admin-ui="panel toolbar">
         {/* Search Input */}
         <div style={{ position: 'relative', width: 280, minWidth: 220 }}>
           <input
             type="text"
-            placeholder="Buscar por nome do bairro..."
+            data-admin-field-icon="true" aria-label="Buscar bairros" placeholder="Buscar por nome do bairro..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="form-input"
@@ -524,7 +533,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               width: '100%',
               boxSizing: 'border-box'
             }}
-          />
+           data-admin-ui="field"/>
           <Search size={15} style={{ position: 'absolute', left: 11, top: 12, color: '#94a3b8' }} />
           {searchTerm && (
             <button
@@ -539,17 +548,18 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 cursor: 'pointer',
                 padding: 0
               }}
-            >
+             aria-label="Fechar" data-admin-ui="button">
               <X size={15} />
             </button>
           )}
         </div>
 
         {/* Filter buttons & sorting */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} data-admin-ui="toolbar">
           {/* Status Filter */}
-          <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: 3, borderRadius: 8 }}>
+          <div className="campaign-status-filters" role="group" aria-label="Situação dos bairros" style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: 3, borderRadius: 8 }}>
             <button
+              aria-pressed={statusFilter === 'all'}
               onClick={() => setStatusFilter('all')}
               style={{
                 padding: '6px 12px',
@@ -562,10 +572,11 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 cursor: 'pointer',
                 boxShadow: statusFilter === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
               }}
-            >
+             data-admin-ui="button">
               Todos ({neighborhoods.length})
             </button>
             <button
+              aria-pressed={statusFilter === 'available'}
               onClick={() => setStatusFilter('available')}
               style={{
                 padding: '6px 12px',
@@ -578,10 +589,11 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 cursor: 'pointer',
                 boxShadow: statusFilter === 'available' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
               }}
-            >
+             data-admin-ui="button">
               Ativos ({stats.available})
             </button>
             <button
+              aria-pressed={statusFilter === 'unavailable'}
               onClick={() => setStatusFilter('unavailable')}
               style={{
                 padding: '6px 12px',
@@ -594,7 +606,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 cursor: 'pointer',
                 boxShadow: statusFilter === 'unavailable' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
               }}
-            >
+             data-admin-ui="button">
               Pausados ({stats.unavailable})
             </button>
           </div>
@@ -603,6 +615,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>Ordenar por:</span>
             <select
+              aria-label="Ordenar bairros"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className="form-input"
@@ -614,7 +627,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 cursor: 'pointer',
                 fontWeight: 600
               }}
-            >
+             data-admin-ui="field">
               <option value="name_asc">Nome (A - Z)</option>
               <option value="name_desc">Nome (Z - A)</option>
               <option value="fee_asc">Taxa (Menor primeiro)</option>
@@ -624,6 +637,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         </div>
       </div>
 
+      <p className="campaign-results" role="status">{processedNeighborhoods.length} bairro(s) encontrado(s)</p>
       {/* 4. NEIGHBORHOODS TABLE */}
       <div style={{
         backgroundColor: '#ffffff',
@@ -631,8 +645,8 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         border: '1px solid #e2e8f0',
         overflow: 'hidden',
         boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-      }}>
-        <div style={{ overflowX: 'auto' }}>
+      }} data-admin-ui="panel">
+        <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" className="neighborhoods-responsive-table" aria-label="Tabela de Entrega e taxas — role para ver todas as colunas" data-admin-ui="table-scroll">
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.86rem' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#475569', fontWeight: 800 }}>
@@ -721,7 +735,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                                 if (e.key === 'Enter') handleSaveQuickFee(item);
                                 if (e.key === 'Escape') setQuickEditingId(null);
                               }}
-                            />
+                             data-admin-ui="field"/>
                             <button
                               onClick={() => handleSaveQuickFee(item)}
                               style={{
@@ -733,7 +747,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                                 cursor: 'pointer'
                               }}
                               title="Salvar"
-                            >
+                             aria-label="Salvar" data-admin-ui="button">
                               <Check size={14} />
                             </button>
                             <button
@@ -747,7 +761,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                                 cursor: 'pointer'
                               }}
                               title="Cancelar"
-                            >
+                             aria-label="Cancelar" data-admin-ui="button">
                               <X size={14} />
                             </button>
                           </div>
@@ -775,7 +789,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                                 alignItems: 'center'
                               }}
                               title="Alterar taxa rapidamente"
-                            >
+                             aria-label="Alterar taxa rapidamente" data-admin-ui="button">
                               <Edit2 size={12} />
                             </button>
                           </div>
@@ -819,7 +833,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                             transition: 'all 0.15s ease'
                           }}
                           title={isAvailable ? 'Clique para pausar entregas neste bairro' : 'Clique para reativar o bairro'}
-                        >
+                         data-admin-ui="button">
                           <span style={{
                             width: 6,
                             height: 6,
@@ -850,7 +864,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                               transition: 'all 0.15s ease'
                             }}
                             title="Editar informações completas do bairro"
-                          >
+                           data-admin-ui="button">
                             <Edit2 size={13} />
                             <span>Editar</span>
                           </button>
@@ -870,7 +884,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                               transition: 'all 0.15s ease'
                             }}
                             title="Excluir este bairro"
-                          >
+                           aria-label="Excluir este bairro" data-admin-ui="button">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -896,7 +910,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           alignItems: 'center',
           justifyContent: 'center',
           padding: 16
-        }}>
+        }} data-admin-ui="overlay">
           <div style={{
             backgroundColor: '#ffffff',
             borderRadius: 18,
@@ -905,7 +919,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             overflow: 'hidden',
             animation: 'fadeIn 0.2s ease'
-          }}>
+          }} role="dialog" aria-modal="true" aria-label="Entrega e taxas — detalhes e edição" data-admin-ui="panel dialog">
             {/* Modal Header */}
             <div style={{
               padding: '18px 22px',
@@ -914,7 +928,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               justifyContent: 'space-between',
               alignItems: 'center',
               backgroundColor: '#f8fafc'
-            }}>
+            }} data-admin-ui="dialog-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
                   width: 36,
@@ -941,13 +955,13 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               <button
                 onClick={() => setIsModalOpen(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
-              >
+               aria-label="Fechar" data-admin-ui="button">
                 <X size={20} />
               </button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveNeighborhood}>
+            <form onSubmit={handleSaveNeighborhood} data-admin-ui="form">
               <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {/* Nome do Bairro */}
                 <div>
@@ -958,12 +972,12 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     type="text"
                     required
                     autoFocus
-                    placeholder="Ex: Candeias, Centro, Recreio, Boa Vista..."
+                    aria-label="Nome do bairro" placeholder="Ex: Candeias, Centro, Recreio, Boa Vista..."
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     className="form-input"
                     style={{ fontSize: '0.9rem', borderRadius: 8, height: 40 }}
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 {/* Taxa de Entrega (R$) */}
@@ -985,16 +999,16 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     <input
                       type="text"
                       required
-                      placeholder="0.00"
+                      aria-label="Taxa de entrega" placeholder="0.00"
                       value={formFee}
                       onChange={(e) => setFormFee(e.target.value)}
                       className="form-input"
                       style={{ paddingLeft: 38, fontSize: '1rem', fontWeight: 800, borderRadius: 8, height: 40 }}
-                    />
+                     data-admin-ui="field"/>
                   </div>
 
                   {/* Preset Quick Buttons */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' }} data-admin-ui="toolbar">
                     <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>Sugestões:</span>
                     {[0, 5, 7, 8, 10, 12, 15].map(val => (
                       <button
@@ -1011,7 +1025,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                           fontWeight: 700,
                           cursor: 'pointer'
                         }}
-                      >
+                       data-admin-ui="button">
                         {val === 0 ? 'Grátis' : `R$ ${val}`}
                       </button>
                     ))}
@@ -1027,12 +1041,12 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     <Clock size={16} style={{ position: 'absolute', left: 12, top: 12, color: '#94a3b8' }} />
                     <input
                       type="text"
-                      placeholder="Ex: 30-40 min, 40-50 min..."
+                      aria-label="Tempo estimado de entrega" placeholder="Ex: 30-40 min, 40-50 min..."
                       value={formEstimatedTime}
                       onChange={(e) => setFormEstimatedTime(e.target.value)}
                       className="form-input"
                       style={{ paddingLeft: 36, fontSize: '0.86rem', borderRadius: 8, height: 40 }}
-                    />
+                     data-admin-ui="field"/>
                   </div>
                 </div>
 
@@ -1048,7 +1062,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     onChange={(e) => setFormNotes(e.target.value)}
                     className="form-input"
                     style={{ fontSize: '0.84rem', borderRadius: 8, height: 38 }}
-                  />
+                   data-admin-ui="field"/>
                 </div>
 
                 {/* Status Toggle */}
@@ -1083,7 +1097,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                       position: 'relative',
                       transition: 'background-color 0.2s ease'
                     }}
-                  >
+                   data-admin-ui="button">
                     <span style={{
                       position: 'absolute',
                       top: 3,
@@ -1107,7 +1121,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: 10
-              }}>
+              }} data-admin-ui="actions">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -1121,7 +1135,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     fontSize: '0.84rem',
                     cursor: 'pointer'
                   }}
-                >
+                 data-admin-ui="button">
                   Cancelar
                 </button>
 
@@ -1134,7 +1148,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     fontWeight: 800,
                     fontSize: '0.86rem'
                   }}
-                >
+                 data-admin-ui="button">
                   {editingNeighborhood ? 'Salvar Alterações' : 'Cadastrar Bairro'}
                 </button>
               </div>
@@ -1155,7 +1169,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           alignItems: 'center',
           justifyContent: 'center',
           padding: 16
-        }}>
+        }} data-admin-ui="overlay">
           <div style={{
             backgroundColor: '#ffffff',
             borderRadius: 18,
@@ -1163,7 +1177,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
             maxWidth: 480,
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             overflow: 'hidden'
-          }}>
+          }} role="dialog" aria-modal="true" aria-label="Entrega e taxas — detalhes e edição" data-admin-ui="panel dialog">
             <div style={{
               padding: '18px 22px',
               borderBottom: '1px solid #e2e8f0',
@@ -1171,7 +1185,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               justifyContent: 'space-between',
               alignItems: 'center',
               backgroundColor: '#f8fafc'
-            }}>
+            }} data-admin-ui="dialog-header">
               <div>
                 <h3 style={{ fontSize: '1.2rem', fontWeight: 900, margin: 0, color: '#0f172a' }}>
                   Ajuste de Taxas em Massa
@@ -1183,18 +1197,18 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
               <button
                 onClick={() => setIsBulkModalOpen(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
-              >
+               aria-label="Fechar" data-admin-ui="button">
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleApplyBulkAdjustment}>
+            <form onSubmit={handleApplyBulkAdjustment} data-admin-ui="form">
               <div style={{ padding: '22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 800, color: '#334155', marginBottom: 6 }}>
                     Tipo de Reajuste
                   </label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }} data-admin-ui="grid">
                     <button
                       type="button"
                       onClick={() => setBulkAdjustmentType('add')}
@@ -1208,7 +1222,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                         fontSize: '0.8rem',
                         cursor: 'pointer'
                       }}
-                    >
+                     data-admin-ui="button">
                       + Aumentar
                     </button>
                     <button
@@ -1224,7 +1238,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                         fontSize: '0.8rem',
                         cursor: 'pointer'
                       }}
-                    >
+                     data-admin-ui="button">
                       - Reduzir
                     </button>
                     <button
@@ -1240,7 +1254,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                         fontSize: '0.8rem',
                         cursor: 'pointer'
                       }}
-                    >
+                     data-admin-ui="button">
                       Taxa Fixa Geral
                     </button>
                   </div>
@@ -1259,7 +1273,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                       onChange={(e) => setBulkAdjustmentValue(e.target.value)}
                       className="form-input"
                       style={{ paddingLeft: 38, fontSize: '1rem', fontWeight: 800, borderRadius: 8, height: 40 }}
-                    />
+                     data-admin-ui="field"/>
                   </div>
                   <span style={{ fontSize: '0.74rem', color: '#64748b', marginTop: 4, display: 'block' }}>
                     {bulkAdjustmentType === 'add' && `Exemplo: se colocar 1.00, um bairro de R$ 8,00 passará para R$ 9,00.`}
@@ -1276,7 +1290,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                 display: 'flex',
                 justifyContent: 'flex-end',
                 gap: 10
-              }}>
+              }} data-admin-ui="actions">
                 <button
                   type="button"
                   onClick={() => setIsBulkModalOpen(false)}
@@ -1290,7 +1304,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                     fontSize: '0.84rem',
                     cursor: 'pointer'
                   }}
-                >
+                 data-admin-ui="button">
                   Cancelar
                 </button>
 
@@ -1298,7 +1312,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                   type="submit"
                   className="btn btn-primary"
                   style={{ padding: '8px 20px', borderRadius: 8, fontWeight: 800, fontSize: '0.86rem' }}
-                >
+                 data-admin-ui="button">
                   Aplicar aos {neighborhoods.length} Bairros
                 </button>
               </div>
@@ -1319,7 +1333,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
           alignItems: 'center',
           justifyContent: 'center',
           padding: 16
-        }}>
+        }} data-admin-ui="overlay">
           <div style={{
             backgroundColor: '#ffffff',
             borderRadius: 18,
@@ -1328,7 +1342,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
             padding: 24,
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             textAlign: 'center'
-          }}>
+          }} role="dialog" aria-modal="true" aria-label="Entrega e taxas — detalhes e edição" data-admin-ui="panel dialog">
             <div style={{
               width: 52,
               height: 52,
@@ -1364,7 +1378,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                   fontSize: '0.86rem',
                   cursor: 'pointer'
                 }}
-              >
+               data-admin-ui="button">
                 Cancelar
               </button>
 
@@ -1381,7 +1395,7 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
                   cursor: 'pointer',
                   boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)'
                 }}
-              >
+               data-admin-ui="button">
                 Sim, Excluir
               </button>
             </div>
@@ -1389,5 +1403,6 @@ export const NeighborhoodsTab: React.FC<NeighborhoodsTabProps> = ({ neighborhood
         </div>
       )}
     </div>
+    </fieldset>
   );
 };

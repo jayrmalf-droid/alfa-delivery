@@ -1,0 +1,42 @@
+import { parseMoneyInput, safeCsvCell as csv } from '../../domain/adminInput';
+import { businessMonth, shiftCalendarMonth, daysInCalendarMonth } from '../../domain/businessDates';
+import { useConfirmedSave } from '../../utils/useConfirmedSave';
+import React, { useMemo, useState } from 'react';
+import { Trophy, History, TrendingUp } from 'lucide-react';
+import './goalsCharts.css';
+import type { Order } from '../../types';
+import { cache, saveRemote, onApiChange } from '../../services/api';
+import { formatCurrency } from '../../utils/formatters';
+
+type Goal = {month:string;amount:number};
+const monthNow = () => businessMonth();
+const money = (n:number) => Math.round(n*100)/100;
+export const SalesGoals:React.FC<{orders:Order[]}> = ({orders}) => {
+  const { saving, saveError, runSave } = useConfirmedSave();
+  const [month,setMonth]=useState(monthNow);
+  const [input,setInput]=useState('');
+  const [message,setMessage]=useState('');
+  const [,update]=useState(0);
+  React.useEffect(()=>onApiChange(()=>update(n=>n+1)),[]);
+  const goals:Goal[]=Array.isArray(cache.alfa_sales_goals)?cache.alfa_sales_goals:[];
+  const goal=goals.find(g=>g.month===month);
+  const valid=useMemo(()=>orders.filter(o=>o.status!=='cancelled'),[orders]);
+  const monthOrders=valid.filter(o=>businessMonth(o.created_at)===month);
+  const total=money(monthOrders.reduce((s,o)=>s+Number(o.total||0),0));
+  const previous=shiftCalendarMonth(month,-1);
+  const prevTotal=money(valid.filter(o=>businessMonth(o.created_at)===previous).reduce((s,o)=>s+Number(o.total||0),0));
+  const target=goal?.amount||0;
+  const percentage=target?total/target*100:0;
+  const dailyTarget=target?target/daysInCalendarMonth(month):0;
+  const top=useMemo(()=>{const map=new Map<string,number>();monthOrders.forEach(o=>(o.items||[]).forEach(i=>map.set(i.product_name,(map.get(i.product_name)||0)+Number(i.quantity||0))));return [...map].sort((a,b)=>b[1]-a[1]).slice(0,5);},[monthOrders]);
+  const save=async()=>{const value=parseMoneyInput(input);if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)||value===null||value<=0||value>1e9||Math.abs(value*100-Math.round(value*100))>0.00001){setMessage('Informe uma meta positiva, com até duas casas decimais.');return;}setMessage('');if (!await runSave(() => saveRemote('alfa_sales_goals',[...goals.filter(g=>g.month!==month),{month,amount:money(value)}].sort((a,b)=>a.month.localeCompare(b.month))))) return;setMessage('Meta salva com sucesso.');setInput('');};
+  const exportCSV=()=>{const rows=[['Mês','Meta','Faturamento registrado','Percentual','Pedidos','Ticket médio'],...goals.map(g=>{const list=valid.filter(o=>businessMonth(o.created_at)===g.month);const sum=money(list.reduce((s,o)=>s+Number(o.total||0),0));return [g.month,g.amount,sum,money(sum/g.amount*100),list.length,money(list.length?sum/list.length:0)];})];const blob=new Blob(['\uFEFF'+rows.map(r=>r.map(csv).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='metas-vendas-alfa.csv';a.click();URL.revokeObjectURL(url);};
+  const card:React.CSSProperties={background:'#fff',border:'1px solid #e2e8f0',borderRadius:14,padding:16};
+  return <fieldset disabled={saving} aria-busy={saving} className="confirmed-save-fields">{saveError && <p role="alert" className="confirmed-save-error">{saveError}</p>}{saving && <p role="status">Aguardando confirmação de gravação…</p>}<section style={{display:'flex',flexDirection:'column',gap:14}}><div><h3 style={{fontSize:20,fontWeight:800,color:'#0f172a',margin:'0 0 5px'}}>Metas de vendas e desempenho</h3><p style={{color:'#64748b',fontSize:13,margin:0}}>Os indicadores abaixo usam o mês escolhido nesta seção. Pedidos não cancelados, pela data de criação; não representa recebimento nem lucro.</p></div>
+    <div style={{...card,display:'flex',flexWrap:'wrap',alignItems:'end',gap:12}} data-admin-ui="toolbar"><label style={{fontSize:13}}>Mês<br/><input type="month" value={month} onChange={e=>{setMonth(e.target.value);setInput('');setMessage('');}} style={{padding:9,border:'1px solid #cbd5e1',borderRadius:8}} data-admin-ui="field"/></label><label style={{fontSize:13}}>Meta mensal (R$)<br/><input type="text" inputMode="decimal" placeholder={goal?goal.amount.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'Ex.: 1.000,00'} value={input} onChange={e=>setInput(e.target.value)} style={{padding:9,border:'1px solid #cbd5e1',borderRadius:8}} data-admin-ui="field"/></label><button onClick={save} style={{padding:'10px 16px',background:'#0f766e',color:'#fff',border:0,borderRadius:8,cursor:'pointer'}} data-admin-ui="button">Salvar meta</button><button onClick={exportCSV} style={{padding:'10px 16px',border:'1px solid #cbd5e1',borderRadius:8,cursor:'pointer'}} data-admin-ui="button">Exportar metas CSV</button>{message&&<span role="status" style={{fontSize:12,color:'#475569'}}>{message}</span>}</div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12}} data-admin-ui="grid">{[['Meta mensal',target?formatCurrency(target):'Não definida'],['Faturamento do mês',formatCurrency(total)],['Atingimento',target?`${percentage.toFixed(1)}%`:'—'],['Falta para meta',target?formatCurrency(Math.max(0,target-total)):'—'],['Meta diária média',target?formatCurrency(dailyTarget):'—'],['Ticket médio',formatCurrency(monthOrders.length?total/monthOrders.length:0)],['Mês anterior',formatCurrency(prevTotal)],['Variação mensal',prevTotal?`${((total-prevTotal)/prevTotal*100).toFixed(1)}%`:'Sem base']].map(([label,value])=><div key={label} style={card}><div style={{color:'#64748b',fontSize:12}}>{label}</div><strong style={{fontSize:20,color:'#0f172a'}}>{value}</strong></div>)}</div>
+    {target>0&&<div style={{...card}}><div style={{height:12,background:'#e2e8f0',borderRadius:9,overflow:'hidden'}}><div style={{width:`${Math.min(100,percentage)}%`,height:'100%',background:'#0f766e'}}/></div><small style={{color:'#64748b'}}>{percentage.toFixed(1)}% da meta mensal · {monthOrders.length} pedido(s) válido(s)</small></div>}
+    <div className="goal-ranking-card"><div className="goal-section-title"><span className="goal-section-icon"><Trophy size={19}/></span><div><strong>Produtos mais vendidos no mês</strong><small>Ranking por unidades vendidas · {month}</small></div></div>{top.length?<div className="goal-ranking-list">{top.map(([name,qty],index)=><div className="goal-ranking-row" key={name}><span className="goal-ranking-position">{index+1}</span><div className="goal-ranking-content"><div className="goal-ranking-text"><strong title={name}>{name}</strong><span>{qty} un.</span></div><div className="goal-ranking-track" role="meter" aria-label={`${name}: ${qty} unidades`} aria-valuemin={0} aria-valuemax={Math.max(1,top[0]?.[1]||1)} aria-valuenow={qty}><span style={{width:`${Math.max(0,Math.min(100,qty/Math.max(1,top[0]?.[1]||1)*100))}%`}}/></div></div></div>)}</div>:<p className="goal-chart-empty">Nenhum produto vendido neste mês. O ranking será exibido quando houver pedidos válidos.</p>}</div>
+    <div className="goal-history-card"><div className="goal-section-title"><span className="goal-section-icon goal-history-icon"><History size={19}/></span><div><strong>Histórico de metas</strong><small>Metas cadastradas por mês, em ordem cronológica</small></div></div>{goals.length?<div className="goal-history-list">{goals.slice().sort((a,b)=>b.month.localeCompare(a.month)).map(g=>{const achieved=valid.filter(o=>businessMonth(o.created_at)===g.month).reduce((sum,o)=>sum+Number(o.total||0),0);const ratio=g.amount>0?achieved/g.amount*100:0;return <div className="goal-history-row" key={g.month}><div className="goal-history-month"><TrendingUp size={16}/><strong>{g.month}</strong></div><div className="goal-history-values"><span>Meta: <strong>{formatCurrency(g.amount)}</strong></span><span>Registrado: <strong>{formatCurrency(achieved)}</strong></span><span className="goal-history-percentage">{ratio.toFixed(1)}%</span></div><div className="goal-history-track" role="meter" aria-label={`Meta de ${g.month}: ${ratio.toFixed(1)}% atingida`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.max(0,Math.min(100,ratio))}><span style={{width:`${Math.min(100,Math.max(0,ratio))}%`}}/></div></div>})}</div>:<p className="goal-chart-empty">Nenhuma meta cadastrada. Defina uma meta mensal para acompanhar sua evolução.</p>}</div>
+  </section></fieldset>;
+};

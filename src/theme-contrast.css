@@ -1,0 +1,43 @@
+/* Foreground and background are paired; translucent surfaces cannot guarantee contrast. */
+.admin-shell .admin-dashboard .dashboard-header .dashboard-periods {
+ background:var(--bg-card)!important; border:1px solid var(--control-border)!important;
+ box-shadow:0 4px 14px #00000012; padding:5px!important;
+}
+.admin-shell .admin-dashboard .dashboard-header .dashboard-periods button {
+ color:var(--surface-text)!important; background:var(--bg-card)!important;
+ border:1px solid transparent; min-height:44px; opacity:1; box-shadow:none!important;
+}
+.admin-shell .admin-dashboard .dashboard-header .dashboard-periods button:hover {
+ border-color:var(--control-border); text-decoration:underline; text-underline-offset:4px;
+}
+.admin-shell .admin-dashboard .dashboard-header .dashboard-periods button[aria-pressed=true] {
+ background:var(--color-primary)!important; color:var(--color-on-primary)!important;
+ border-color:var(--control-border); box-shadow:0 2px 5px #00000018!important;
+}
+.admin-shell .admin-dashboard .dashboard-header .dashboard-periods button:focus-visible {
+ outline:3px solid var(--control-border); outline-offset:2px; position:relative; z-index:1;
+}
+.admin-shell .admin-sidebar .admin-brand strong,
+.admin-shell .admin-menu-group>button.active,
+.admin-shell .dashboard-jumps button { color:var(--primary-ink)!important; }
+.admin-shell .admin-menu-group>button.active { background:var(--bg-card)!important; border:1px solid var(--control-border)!important; }
+.admin-shell .dashboard-jumps button { border-color:var(--control-border); }
+.admin-shell :is(.admin-command-trigger,.admin-density-toggle,.admin-theme-toggle) { color:var(--surface-text)!important; border-color:var(--control-border)!important; background:var(--bg-card)!important; }
+.admin-shell .btn-primary { color:var(--color-on-primary)!important; }
+.storefront { color:var(--page-text); }
+.storefront .campaign-brand-highlight,.storefront .brand-text strong { color:var(--page-primary-ink)!important; }
+.storefront .catalog-main .product-card .product-price strong,
+.storefront .campaign-visual .floating-offer-price strong { color:var(--primary-ink)!important; }
+.storefront .category-list>button { background:var(--bg-card)!important; color:var(--surface-text)!important; border-color:var(--control-border)!important; }
+.storefront .category-list>button.selected { background:var(--color-primary)!important; color:var(--color-on-primary)!important; }
+.storefront .catalog-view-toggle { background:var(--bg-card)!important; border-color:var(--control-border); }
+.storefront .catalog-view-toggle .catalog-view-btn { color:var(--surface-text)!important; }
+.storefront .catalog-view-toggle .catalog-view-btn.active { background:var(--color-primary)!important; color:var(--color-on-primary)!important; box-shadow:none; }
+.storefront :is(.catalog-search,.catalog-sort-tools select,.catalog-filter-summary button) { background:var(--bg-card)!important; border-color:var(--control-border)!important; color:var(--surface-text)!important; }
+.storefront .catalog-search input,.storefront .catalog-search input::placeholder { color:var(--surface-text); opacity:1; }
+.storefront .catalog-main .product-card .product-add { border-color:var(--control-border)!important; }
+.storefront .mobile-bottom-nav button[aria-current=page] { background:var(--bg-card)!important; color:var(--primary-ink)!important; box-shadow:inset 0 -3px var(--control-border); }
+.storefront :is(.footer-qty-btn,.cart-stepper-btn) { color:var(--primary-ink)!important; border-color:var(--control-border); }
+.storefront :is(.cart-continue-shopping,.checkout-modal-sheet .payment-choice-card.active,.checkout-modal-sheet .segmented-btn.active) { background:var(--bg-card)!important; color:var(--primary-ink)!important; border-color:var(--control-border)!important; }
+.storefront .store-footer :is(button,a) { border-color:var(--color-on-dark)!important; }
+@media(forced-colors:active) { .dashboard-periods button[aria-pressed=true],.category-list>button.selected { outline:2px solid Highlight; } }

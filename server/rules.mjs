@@ -40,3 +40,86 @@ export function openingStatus(settings, date = new Date()) {
     }
     return { isOpen: false, message: 'Fechado hoje' };
 }
+export function calculateLoyaltyStatus(orders, phone, settings) {
+    const enabled = settings?.loyalty_enabled !== false;
+    const program_name = settings?.loyalty_program_name || 'Clube 10 Pedidos';
+    const goal = Number(settings?.loyalty_stamps_goal) || 10;
+    const minOrderVal = Number(settings?.loyalty_min_order_value ?? 45);
+    const minOrderCents = cents(minOrderVal);
+    const discountPercent = Number(settings?.loyalty_discount_percent) || 50;
+    const maxDiscountVal = Number(settings?.loyalty_max_discount_value ?? 35);
+    const expDays = Number(settings?.loyalty_expiration_days) || 90;
+    let normalizedPhone = '';
+    try {
+        normalizedPhone = normalizePhone(phone);
+    }
+    catch {
+        normalizedPhone = String(phone || '').replace(/\D/g, '');
+    }
+    const customerOrders = (Array.isArray(orders) ? orders : [])
+        .filter(o => {
+        if (!o || o.status === 'cancelled')
+            return false;
+        try {
+            return normalizePhone(o.customer_phone) === normalizedPhone;
+        }
+        catch {
+            return false;
+        }
+    })
+        .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+    let stamps = 0;
+    let totalStampsAllTime = 0;
+    let rewardsRedeemedCount = 0;
+    let lastStampDate = null;
+    let isExpired = false;
+    for (const order of customerOrders) {
+        const orderDate = new Date(order.created_at || 0).getTime();
+        // Se o pedido usou a recompensa da fidelidade, consome os selos acumulados
+        if (order.used_loyalty_reward) {
+            rewardsRedeemedCount++;
+            stamps = Math.max(0, stamps - goal);
+        }
+        // Pedido gera selo se atingiu o valor mínimo configurado
+        const orderSubtotalCents = cents(order.subtotal ?? order.total ?? 0);
+        if (orderSubtotalCents >= minOrderCents) {
+            // Verifica se houve expiração por inatividade entre o último selo e este pedido
+            if (lastStampDate && expDays > 0) {
+                const daysDiff = (orderDate - new Date(lastStampDate).getTime()) / (1000 * 60 * 60 * 24);
+                if (daysDiff > expDays && stamps < goal) {
+                    stamps = 0;
+                }
+            }
+            stamps++;
+            totalStampsAllTime++;
+            lastStampDate = order.created_at;
+        }
+    }
+    // Verifica expiração por inatividade desde o último selo até a data atual
+    if (lastStampDate && expDays > 0 && stamps > 0 && stamps < goal) {
+        const daysSinceLast = (Date.now() - new Date(lastStampDate).getTime()) / (1000 * 60 * 60 * 24);
+        if (daysSinceLast > expDays) {
+            isExpired = true;
+            stamps = 0;
+        }
+    }
+    const hasReward = stamps >= goal;
+    const stamps_needed = Math.max(0, goal - stamps);
+    return {
+        enabled,
+        program_name,
+        phone: normalizedPhone,
+        stamps: Math.min(stamps, goal),
+        goal,
+        stamps_needed,
+        has_reward: hasReward,
+        discount_percent: discountPercent,
+        max_discount_value: maxDiscountVal,
+        min_order_value: minOrderVal,
+        expiration_days: expDays,
+        is_expired: isExpired,
+        last_stamp_date: lastStampDate,
+        total_stamps_all_time: totalStampsAllTime,
+        rewards_redeemed_count: rewardsRedeemedCount
+    };
+}

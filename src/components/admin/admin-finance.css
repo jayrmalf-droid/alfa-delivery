@@ -1,0 +1,41 @@
+.finance-expenses .finance-eyebrow{font-size:11px;font-weight:800;letter-spacing:.12em;color:#0f766e}
+.finance-expenses .admin-section-heading h2{margin:6px 0;font-size:26px;letter-spacing:-.03em}
+.finance-expenses .admin-section-heading p{color:#64748b;margin:0 0 18px;line-height:1.6}
+.finance-view-tabs{display:flex;gap:6px;padding:6px;background:#eaf0f5;border:1px solid #dbe4ed;border-radius:14px;margin-bottom:20px}
+.finance-view-tabs button{flex:1;min-width:0;padding:12px 10px;border:0;border-radius:10px;background:transparent;color:#475569;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.finance-view-tabs button[aria-selected=true]{background:#fff;color:#0f766e;box-shadow:0 2px 6px #0f172a12}
+.finance-expenses [hidden]{display:none!important}
+.finance-expenses :focus-visible{outline:3px solid #0d9488;outline-offset:3px}
+.finance-expenses section{min-width:0;box-shadow:0 3px 12px #0f172a04}
+.finance-expenses h3{font-size:18px;letter-spacing:-.02em;margin-top:0}
+.finance-expenses h4{font-size:15px}
+.finance-expenses label{font-size:13px;font-weight:600;display:flex;flex-direction:column;gap:6px;min-width:0}
+.finance-expenses p{line-height:1.65;overflow-wrap:anywhere}
+.finance-expenses .finance-period-panel [data-admin-ui=toolbar],.finance-expenses .finance-manager [data-admin-ui=toolbar],.finance-expenses .finance-closure [data-admin-ui=toolbar]{padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}
+.finance-expenses button:disabled{opacity:.5;cursor:not-allowed}
+.finance-expenses [data-admin-ui=grid]>div{min-width:0;overflow-wrap:anywhere}
+.finance-chart{padding:12px 4px 4px;overscroll-behavior-x:contain}
+.finance-chart-values{font-size:11px;color:#475569;line-height:1.65;margin-top:7px}
+.finance-expenses table th{font-size:12px;color:#64748b;background:#f8fafc}
+.finance-expenses table td{font-size:13px;overflow-wrap:anywhere}
+.finance-expenses td[data-label=Ações]{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:640px){
+.finance-expenses{padding:12px!important}
+.finance-expenses .admin-section-heading h2{font-size:22px}
+.finance-view-tabs{gap:3px;padding:4px}
+.finance-view-tabs button{font-size:12px;padding:11px 5px;line-height:1.4}
+.finance-expenses section{padding:14px!important;border-radius:14px!important}
+.finance-expenses [data-admin-ui=toolbar]>label,.finance-expenses [data-admin-ui=toolbar]>button{flex:1 1 100%;width:100%!important}
+.finance-expenses [data-admin-ui=grid]{grid-template-columns:minmax(0,1fr)!important}
+.finance-expense-list [data-admin-ui=table-scroll],.finance-closure [data-admin-ui=table-scroll]{overflow:visible!important}
+.finance-expense-list table,.finance-closure table{min-width:0!important;display:block;width:100%}
+.finance-expense-list thead,.finance-closure thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.finance-expense-list tbody,.finance-closure tbody{display:grid;gap:12px}
+.finance-expense-list tr,.finance-closure tr{display:block;border:1px solid #e2e8f0;border-radius:12px;padding:8px;background:#fff}
+.finance-expense-list td,.finance-closure td{display:grid;grid-template-columns:minmax(80px,.8fr) minmax(0,1.2fr);gap:10px;padding:9px 4px!important;border:0!important}
+.finance-expense-list td[data-label]::before,.finance-closure td[data-label]::before{content:attr(data-label);color:#64748b;font-size:12px;font-weight:600}
+.finance-expense-list td[data-label=Ações]{display:flex;align-items:center;flex-wrap:wrap}
+.finance-expense-list td[colspan],.finance-closure td[colspan]{display:block}
+}
+
+.finance-feedback{padding:12px 16px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;border-radius:12px}

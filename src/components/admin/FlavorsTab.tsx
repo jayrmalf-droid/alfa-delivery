@@ -1,9 +1,12 @@
+import { useDialog } from '../../utils/useDialog';
+import { useConfirmedSave } from '../../utils/useConfirmedSave';
 import React, { useState } from 'react';
 import { Flavor } from '../../types';
 import { StorageService } from '../../services/storageService';
 import { Plus, Edit2, Trash2, Check, X, Sparkles, Image as ImageIcon } from 'lucide-react';
 
 export const FlavorsTab: React.FC = () => {
+  const { saving, saveError, runSave } = useConfirmedSave();
   const [flavors, setFlavors] = useState<Flavor[]>(() => StorageService.getFlavors());
   const [editingFlavor, setEditingFlavor] = useState<Flavor | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,7 +37,7 @@ export const FlavorsTab: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim()) return;
 
@@ -47,27 +50,32 @@ export const FlavorsTab: React.FC = () => {
       sort_order: formData.sort_order || 1
     };
 
-    StorageService.upsertFlavor(toSave);
+    if (!await runSave(() => StorageService.upsertFlavor(toSave))) return;
     setFlavors(StorageService.getFlavors());
     setIsModalOpen(false);
   };
 
-  const handleToggleActive = (id: string) => {
-    StorageService.toggleFlavor(id);
+  const handleToggleActive = async (id: string) => {
+    if (!await runSave(() => StorageService.toggleFlavor(id))) return;
     setFlavors(StorageService.getFlavors());
   };
 
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = async (id: string, name: string) => {
     if (window.confirm(`Deseja realmente remover o sabor "${name}"?`)) {
-      StorageService.deleteFlavor(id);
+      if (!await runSave(() => StorageService.deleteFlavor(id))) return;
       setFlavors(StorageService.getFlavors());
     }
   };
 
+  useDialog(isModalOpen, () => { if (saving) return; setIsModalOpen(false); });
+
   return (
+    <fieldset disabled={saving} aria-busy={saving} className="confirmed-save-fields">
+      {saveError && <p role="alert" className="confirmed-save-error">{saveError}</p>}
+      {saving && <p role="status">Aguardando confirmação de gravação…</p>}
     <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }} data-admin-ui="toolbar">
         <div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
             Catálogo de Sabores (Salgados & Doces)
@@ -89,7 +97,7 @@ export const FlavorsTab: React.FC = () => {
             alignItems: 'center',
             gap: 6
           }}
-        >
+         data-admin-ui="button">
           <Plus size={16} />
           <span>Novo Sabor</span>
         </button>
@@ -100,7 +108,7 @@ export const FlavorsTab: React.FC = () => {
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
         gap: 16
-      }}>
+      }} data-admin-ui="grid">
         {flavors.map(flavor => (
           <div
             key={flavor.id}
@@ -114,7 +122,7 @@ export const FlavorsTab: React.FC = () => {
               flexDirection: 'column',
               opacity: flavor.is_active ? 1 : 0.6
             }}
-          >
+           data-admin-ui="panel">
             {/* Image banner */}
             <div style={{ position: 'relative', height: 130, backgroundColor: '#f1f5f9' }}>
               {flavor.image_url ? (
@@ -169,7 +177,7 @@ export const FlavorsTab: React.FC = () => {
                     color: flavor.is_active ? '#dc2626' : '#16a34a',
                     cursor: 'pointer'
                   }}
-                >
+                 data-admin-ui="button">
                   {flavor.is_active ? 'Desativar' : 'Ativar'}
                 </button>
 
@@ -185,7 +193,7 @@ export const FlavorsTab: React.FC = () => {
                       color: '#475569'
                     }}
                     title="Editar"
-                  >
+                   aria-label="Editar" data-admin-ui="button">
                     <Edit2 size={14} />
                   </button>
 
@@ -200,7 +208,7 @@ export const FlavorsTab: React.FC = () => {
                       color: '#dc2626'
                     }}
                     title="Excluir"
-                  >
+                   aria-label="Excluir" data-admin-ui="button">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -222,7 +230,7 @@ export const FlavorsTab: React.FC = () => {
           alignItems: 'center',
           justifyContent: 'center',
           padding: 16
-        }}>
+        }} data-admin-ui="overlay">
           <div style={{
             backgroundColor: '#fff',
             borderRadius: 18,
@@ -230,12 +238,12 @@ export const FlavorsTab: React.FC = () => {
             maxWidth: 480,
             padding: 24,
             boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
-          }}>
+          }} role="dialog" aria-modal="true" aria-label="Sabor — detalhes e edição" data-admin-ui="panel dialog">
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 16px', color: '#0f172a' }}>
               {editingFlavor ? 'Editar Sabor' : 'Novo Sabor'}
             </h3>
 
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 12 }} data-admin-ui="form">
               <div>
                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: '#475569', marginBottom: 4 }}>
                   Nome do Sabor *
@@ -248,7 +256,7 @@ export const FlavorsTab: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="form-input"
                   style={{ width: '100%', borderRadius: 8, fontSize: '0.9rem' }}
-                />
+                 data-admin-ui="field"/>
               </div>
 
               <div>
@@ -262,7 +270,7 @@ export const FlavorsTab: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="form-input"
                   style={{ width: '100%', borderRadius: 8, fontSize: '0.88rem' }}
-                />
+                 data-admin-ui="field"/>
               </div>
 
               <div>
@@ -276,7 +284,7 @@ export const FlavorsTab: React.FC = () => {
                   onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                   className="form-input"
                   style={{ width: '100%', borderRadius: 8, fontSize: '0.88rem' }}
-                />
+                 data-admin-ui="field"/>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
@@ -303,7 +311,7 @@ export const FlavorsTab: React.FC = () => {
                     cursor: 'pointer',
                     fontSize: '0.88rem'
                   }}
-                >
+                 data-admin-ui="button">
                   Cancelar
                 </button>
 
@@ -311,7 +319,7 @@ export const FlavorsTab: React.FC = () => {
                   type="submit"
                   className="btn btn-primary"
                   style={{ padding: '8px 18px', borderRadius: 8, fontSize: '0.88rem', fontWeight: 700 }}
-                >
+                 data-admin-ui="button">
                   Salvar Sabor
                 </button>
               </div>
@@ -320,5 +328,6 @@ export const FlavorsTab: React.FC = () => {
         </div>
       )}
     </div>
+    </fieldset>
   );
 };

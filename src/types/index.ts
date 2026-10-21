@@ -59,6 +59,16 @@ export interface StoreSettings {
   order_sound_type?: 'bell' | 'alarm' | 'digital' | 'marimba' | 'cash' | 'siren' | string;
   order_sound_duration?: number; // duration in seconds (ex: 2, 5, 10, 15, 30)
   order_sound_volume?: number; // 0 to 100
+  // Programa de Fidelidade (Clube de Selos com Travas)
+  loyalty_enabled?: boolean;
+  loyalty_program_name?: string;
+  loyalty_min_order_value?: number;
+  loyalty_stamps_goal?: number;
+  loyalty_points_goal?: number;
+  loyalty_points_per_real?: number;
+  loyalty_discount_percent?: number;
+  loyalty_max_discount_value?: number;
+  loyalty_expiration_days?: number;
   [key: string]: any;
 }
 
@@ -130,6 +140,11 @@ export interface Customer {
   total_spent: number;
   average_ticket: number;
   last_order_at?: string;
+  loyalty_stamps?: number;
+  loyalty_points?: number;
+  loyalty_history?: Array<{id:string;order_number:number;type:string;points:number;created_at:string}>;
+  loyalty_has_reward?: boolean;
+  loyalty_rewards_count?: number;
   created_at: string;
   updated_at?: string;
 }
@@ -169,16 +184,21 @@ export interface Product {
 
 export interface ProductOptionGroup {
   id: string;
-  product_id: string;
+  product_id?: string;
+  product_ids?: string[];
+  category_ids?: string[];
   name: string;
   description?: string;
   min_options?: number;
   max_options?: number;
   min_select?: number; // Qtd mínima que o cliente deve escolher
   max_select?: number; // Qtd máxima que o cliente pode escolher
+  permite_repetir?: boolean; // Permite quantidade > 1 no mesmo adicional
+  tipo_cobranca?: 'soma' | 'maior_valor' | 'media'; // Regra de cálculo de valor
   step?: number; // Incremento (ex: 10 ou 1)
   is_required?: boolean;
   required?: boolean;
+  is_active?: boolean;
   sort_order: number;
   options?: ProductOption[];
   [key: string]: any;
@@ -192,6 +212,7 @@ export interface ProductOption {
   step?: number;
   is_available?: boolean;
   is_active?: boolean;
+  is_paused?: boolean; // Pausa rápida de estoque em 1 clique
   sort_order?: number;
   [key: string]: any;
 }
@@ -218,6 +239,7 @@ export interface Neighborhood {
 }
 
 export interface DiscountCoupon {
+  show_in_menu?: boolean;
   id: string;
   code: string;
   discount_type?: 'percentage' | 'fixed';
@@ -280,16 +302,27 @@ export interface OrderAuditLog {
   user_responsible: string;
 }
 
+export interface OrderItemAddon {
+  adicional_id: string;
+  nome_historico: string;
+  preco_unitario_historico: number;
+  quantidade: number;
+  subtotal: number;
+  tipo_cobranca?: 'soma' | 'maior_valor' | 'media';
+}
+
 export interface OrderItem {
   id: string;
   order_id: string;
   product_id: string;
   product_name: string;
   product_price: number;
+  unit_price?: number;
   quantity: number;
   subtotal: number;
   notes?: string | null;
   selections?: CartItemOption[];
+  order_item_addons?: OrderItemAddon[];
   [key: string]: any;
 }
 
@@ -319,10 +352,35 @@ export interface Order {
   preorder_time?: string | null;
   opened_at?: string | null;
   payment_status?: string | null;
+  used_loyalty_reward?: boolean;
+  loyalty_discount?: number;
+  loyalty_stamp_earned?: boolean;
   items?: OrderItem[];
   audit_logs?: OrderAuditLog[];
   created_at: string;
   updated_at?: string;
   [key: string]: any;
 }
+
+export interface LoyaltyStatus {
+  enabled: boolean;
+  program_name: string;
+  phone: string;
+  stamps: number;
+  points?: number;
+  earn_per_real?: number;
+  history?: Array<{id:string;order_number:number;type:string;points:number;created_at:string}>;
+  goal: number;
+  stamps_needed: number;
+  has_reward: boolean;
+  discount_percent: number;
+  max_discount_value: number;
+  min_order_value: number;
+  expiration_days: number;
+  is_expired: boolean;
+  last_stamp_date?: string | null;
+  total_stamps_all_time: number;
+  rewards_redeemed_count: number;
+}
+
 

@@ -1,11 +1,14 @@
 import http from 'node:http';
+import { publicOffers, bestsellerIds } from './storefront.mjs';
 import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes, randomUUID, createHash, scryptSync, timingSafeEqual } from 'node:crypto';
 import { CATALOG_KEYS, validateProductBundle } from './catalog.mjs';
-import { normalizePhone, cents, productPrice, openingStatus, localDate } from './rules.mjs';
+import { normalizePhone, cents, productPrice, openingStatus, localDate, calculateLoyaltyStatus } from './rules.mjs';
+import { statusFor, pointsConfig, awardPoints, appendEntry } from './points.mjs';
 import { DatabaseAdapter } from './database.mjs';
+import { backupDirectory, listBackups, createBackup, isBackupName } from './backups.mjs';
 
 const port = Number(process.env.PORT || 3001);
 const production = process.env.NODE_ENV === 'production';
@@ -17,6 +20,22 @@ if (production && (!process.env.ADMIN_PASSWORD_HASH || !process.env.ADMIN_EMAIL)
 const seed = JSON.parse(fs.readFileSync(new URL('./seed.json', import.meta.url), 'utf8'));
 const db = new DatabaseAdapter({ seedData: seed });
 await db.init();
+// Migration for installations created before quick-sale/fiado records existed.
+// Only inserts missing records; existing sales and customer profiles remain untouched.
+await db.ensureRecord('alfa_expenses', []);
+await db.ensureRecord('alfa_cash_closures', []);
+await db.ensureRecord('alfa_stock_movements', []);
+await db.ensureRecord('alfa_sales_goals', []);
+await db.ensureRecord('alfa_loyalty_points', []);
+// Atualiza somente a configuração antiga de selos; preserva os demais ajustes do estabelecimento.
+const legacySettings = await db.getRecord('alfa_settings');
+if (legacySettings && legacySettings.loyalty_points_goal == null) {
+  await db.putRecord('alfa_settings', { ...legacySettings,
+    loyalty_program_name: legacySettings.loyalty_program_name === 'Clube 10 Pedidos' ? 'Clube de Pontos' : legacySettings.loyalty_program_name,
+    loyalty_points_goal: 100, loyalty_points_per_real: 1 });
+}
+await db.ensureRecord('alfa_sales', Array.isArray(seed.alfa_sales) ? seed.alfa_sales : []);
+await db.ensureRecord('alfa_customer_profiles', Array.isArray(seed.alfa_customer_profiles) ? seed.alfa_customer_profiles : []);
 
 // Ensure upload directory exists
 const uploadsDir = path.resolve('public/uploads');
@@ -40,26 +59,8 @@ async function session(req) {
     if (row && row.expires > Date.now()) return true;
   }
 
-  // 2. Suporte a Supabase Auth Bearer Token se configurado
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-        if (payload.exp && payload.exp * 1000 < Date.now()) return false;
-        if (payload.email && process.env.ADMIN_EMAIL && payload.email.toLowerCase() === process.env.ADMIN_EMAIL.toLowerCase()) {
-          return true;
-        }
-        if (payload.user_metadata?.role === 'admin' || payload.app_metadata?.role === 'admin') {
-          return true;
-        }
-      }
-    } catch {
-      // invalid token
-    }
-  }
+  // Administrative access is granted only by server-issued, persisted sessions.
+  // Decoding a Bearer payload does not authenticate its signature or identity.
 
   return false;
 }
@@ -90,6 +91,10 @@ async function calculate(payload, submission = false) {
   const options = await get('alfa_product_options');
   const flavors = await get('alfa_flavors');
 
+  if (payload.apply_loyalty_reward && payload.coupon_code) {
+    fail('A recompensa do programa de fidelidade não pode ser combinada com outro cupom de desconto.');
+  }
+
   if (!Array.isArray(payload.items) || !payload.items.length || payload.items.length > 100) fail('Seu carrinho está vazio ou excede o limite de itens.');
   let subtotal = 0; const requested = new Map();
   const items = payload.items.map(item => {
@@ -99,29 +104,129 @@ async function calculate(payload, submission = false) {
     requested.set(product.id, (requested.get(product.id) || 0) + qty);
     if (product.has_stock_control && requested.get(product.id) > product.stock_quantity) fail(`Estoque insuficiente para ${product.name}.`);
     const selected = Array.isArray(item.selections) ? item.selections : []; if (selected.length > 200) fail('Excesso de adicionais.');
-    const seen = new Set(); let extra = 0; const totals = new Map();
+    const seen = new Set();
+    const totals = new Map();
+    const groupSelections = new Map();
+
     const selections = selected.map(selection => {
-      const count = selection.quantity ?? 1; if (!Number.isInteger(count) || count < 1 || count > 999) fail('Quantidade de adicional inválida.');
-      const identity = `${selection.groupId}:${selection.optionId}`; if (seen.has(identity)) fail('Adicional duplicado.'); seen.add(identity);
+      const count = selection.quantity ?? 1;
+      if (!Number.isInteger(count) || count < 1 || count > 999) fail('Quantidade de adicional inválida.');
+      const identity = `${selection.groupId}:${selection.optionId}`;
+      if (seen.has(identity)) fail('Adicional duplicado.');
+      seen.add(identity);
+
       if (selection.groupId === 'flavors') {
         const flavor = flavors.find(f => f.id === selection.optionId && f.is_active && (!product.available_flavor_ids?.length || product.available_flavor_ids.includes(f.id)));
         if (!flavor || !product.combo_max_qty || count % (product.combo_step || 10) !== 0) fail('Sabor ou quantidade inválidos.');
         totals.set('flavors', (totals.get('flavors') || 0) + count);
-        return { groupId: 'flavors', groupName: 'Sabores escolhidos', optionId: flavor.id, optionName: `${count}x ${flavor.name}`, price: 0, quantity: count };
+        return {
+          groupId: 'flavors',
+          groupName: 'Sabores escolhidos',
+          optionId: flavor.id,
+          optionName: `${count}x ${flavor.name}`,
+          price: 0,
+          unitPrice: 0,
+          quantity: count,
+          tipo_cobranca: 'soma'
+        };
       }
-      const group = groups.find(g => g.id === selection.groupId && g.product_id === product.id);
-      const option = options.find(o => o.id === selection.optionId && o.group_id === group?.id && (o.is_available ?? true) && (o.is_active ?? true));
-      if (!group || !option || count % (group.step || option.step || 1) !== 0) fail('Adicional inválido ou indisponível.');
-      totals.set(group.id, (totals.get(group.id) || 0) + count); extra += cents(option.price || 0) * count;
-      return { groupId: group.id, groupName: group.name, optionId: option.id, optionName: `${count}x ${option.name.replace(/^\d+\s+/, '')}`, price: (cents(option.price || 0) * count) / 100, quantity: count };
+
+      const group = groups.find(g =>
+        g.id === selection.groupId &&
+        (g.product_id === product.id ||
+         (Array.isArray(g.product_ids) && g.product_ids.includes(product.id)) ||
+         (Array.isArray(g.category_ids) && g.category_ids.includes(product.category_id)))
+      );
+      if (!group) fail('Adicional não pertence a este produto.');
+
+      const option = options.find(o =>
+        o.id === selection.optionId &&
+        o.group_id === group.id &&
+        (o.is_available ?? true) &&
+        (o.is_active ?? true) &&
+        o.is_paused !== true
+      );
+      if (!option || count % (group.step || option.step || 1) !== 0) fail('Adicional inválido ou indisponível.');
+
+      if (group.permite_repetir === false && count > 1) {
+        fail(`O grupo ${group.name} não permite repetição do mesmo adicional.`);
+      }
+
+      totals.set(group.id, (totals.get(group.id) || 0) + count);
+      if (!groupSelections.has(group.id)) groupSelections.set(group.id, []);
+      groupSelections.get(group.id).push({ option, count, group });
+
+      const unitCents = cents(option.price || 0);
+      return {
+        groupId: group.id,
+        groupName: group.name,
+        optionId: option.id,
+        optionName: `${count}x ${option.name.replace(/^\d+\s+/, '')}`,
+        price: (unitCents * count) / 100,
+        unitPrice: unitCents / 100,
+        quantity: count,
+        tipo_cobranca: group.tipo_cobranca || 'soma'
+      };
     });
-    for (const group of groups.filter(g => g.product_id === product.id)) {
-      const count = totals.get(group.id) || 0; const min = group.min_select ?? group.min_options ?? 0, max = group.max_select ?? group.max_options ?? 0;
+
+    let extra = 0;
+    for (const [groupId, list] of groupSelections.entries()) {
+      const g = groups.find(x => x.id === groupId);
+      const tipo = g?.tipo_cobranca || 'soma';
+      if (tipo === 'maior_valor') {
+        const maxPrice = Math.max(...list.map(item => cents(item.option.price || 0)));
+        extra += maxPrice;
+      } else if (tipo === 'media') {
+        const totalUnits = list.reduce((sum, item) => sum + item.count, 0);
+        const sumPrice = list.reduce((sum, item) => sum + (cents(item.option.price || 0) * item.count), 0);
+        extra += totalUnits > 0 ? Math.round(sumPrice / totalUnits) : 0;
+      } else {
+        for (const item of list) {
+          extra += cents(item.option.price || 0) * item.count;
+        }
+      }
+    }
+
+    const linkedGroups = groups.filter(g =>
+      g.product_id === product.id ||
+      (Array.isArray(g.product_ids) && g.product_ids.includes(product.id)) ||
+      (Array.isArray(g.category_ids) && g.category_ids.includes(product.category_id))
+    );
+
+    for (const group of linkedGroups) {
+      const count = totals.get(group.id) || 0;
+      const min = group.min_select ?? group.min_options ?? 0;
+      const max = group.max_select ?? group.max_options ?? 0;
       if (((group.required ?? group.is_required) || count > 0) && count < min || max > 0 && count > max) fail(`Confira as quantidades de ${group.name}.`);
     }
-    if (!groups.some(g => g.product_id === product.id) && product.combo_max_qty && (totals.get('flavors') || 0) !== product.combo_max_qty) fail(`Escolha exatamente ${product.combo_max_qty} salgados.`);
-    const unit = cents(productPrice(product)) + extra; const itemSubtotal = unit * qty; subtotal += itemSubtotal;
-    return { id: randomUUID(), product_id: product.id, product_name: product.name, product_price: productPrice(product), unit_price: unit / 100, quantity: qty, subtotal: itemSubtotal / 100, notes: text(item.notes), selections };
+
+    if (!linkedGroups.length && product.combo_max_qty && (totals.get('flavors') || 0) !== product.combo_max_qty) fail(`Escolha exatamente ${product.combo_max_qty} salgados.`);
+
+    const unit = cents(productPrice(product)) + extra;
+    const itemSubtotal = unit * qty;
+    subtotal += itemSubtotal;
+
+    const order_item_addons = selections.map(s => ({
+      adicional_id: s.optionId,
+      nome_historico: s.optionName,
+      preco_unitario_historico: s.unitPrice,
+      quantidade: s.quantity,
+      subtotal: s.price,
+      tipo_cobranca: s.tipo_cobranca || 'soma'
+    }));
+
+    return {
+      id: randomUUID(),
+      product_id: product.id,
+      product_name: product.name,
+      product_price: productPrice(product),
+      unit_price: unit / 100,
+      quantity: qty,
+      subtotal: itemSubtotal / 100,
+      notes: text(item.notes),
+      selections,
+      order_item_addons
+    };
   });
   if (!['pickup', 'delivery'].includes(payload.delivery_type)) fail('Escolha entrega ou retirada.');
   let neighborhood = null, fee = 0;
@@ -129,8 +234,21 @@ async function calculate(payload, submission = false) {
     const neighborhoods = await get('alfa_neighborhoods');
     neighborhood = neighborhoods.find(n => n.id === payload.neighborhood_id && (n.is_available ?? true)); if (!neighborhood) fail('Selecione um bairro atendido pela loja.'); fee = cents(neighborhood.delivery_fee);
   }
-  let discount = 0, coupon = null;
-  if (payload.coupon_code) {
+  let discount = 0, coupon = null, usedLoyaltyReward = false, loyaltyDiscount = 0;
+  if (payload.apply_loyalty_reward && !payload.customer_phone) fail('Informe o telefone para resgatar pontos.');
+  if (payload.apply_loyalty_reward && payload.customer_phone) {
+    if (settings.loyalty_enabled === false) fail('O programa de fidelidade não está ativo no momento.');
+    if (payload.coupon_code) fail('A recompensa do programa de fidelidade não pode ser combinada com outro cupom de desconto.');
+    const ledger = await get('alfa_loyalty_points');
+    const loyalty = statusFor(ledger, payload.customer_phone, settings);
+    if (!loyalty.has_reward) fail('Você ainda não acumulou pontos suficientes para esta recompensa.');
+    const rawDisc = Math.round(subtotal * (loyalty.discount_percent / 100));
+    const capCents = cents(loyalty.max_discount_value);
+    loyaltyDiscount = Math.min(rawDisc, capCents);
+    loyaltyDiscount = Math.min(subtotal, Math.max(0, loyaltyDiscount));
+    discount += loyaltyDiscount;
+    usedLoyaltyReward = true;
+  } else if (payload.coupon_code) {
     const coupons = await get('alfa_coupons');
     coupon = coupons.find(c => c.code.toUpperCase() === String(payload.coupon_code).trim().toUpperCase());
     if (!coupon || !coupon.is_active || coupon.expires_at && Date.parse(coupon.expires_at) < Date.now()) fail('Cupom inválido ou expirado.');
@@ -162,17 +280,87 @@ async function calculate(payload, submission = false) {
     }
     if (payload.payment_method === 'cash' && payload.needs_change && (!Number.isFinite(payload.change_amount) || cents(payload.change_amount) < subtotal + fee - discount)) fail('O valor para troco não pode ser menor que o total.');
   }
-  return { items, subtotal: subtotal / 100, delivery_fee: fee / 100, discount_value: discount / 100, total: (subtotal + fee - discount) / 100, coupon_code: coupon?.code || null, neighborhood, requested, coupon };
+  return { items, subtotal: subtotal / 100, delivery_fee: fee / 100, discount_value: discount / 100, total: (subtotal + fee - discount) / 100, coupon_code: coupon?.code || (usedLoyaltyReward ? 'CLUBE_FIDELIDADE' : null), used_loyalty_reward: usedLoyaltyReward, loyalty_discount: loyaltyDiscount / 100, neighborhood, requested, coupon };
 }
 
 async function validateRecord(key, value) {
   if (key === 'alfa_settings') {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !text(value.business_name, 100)) fail('Configurações inválidas.');
-    normalizePhone(value.whatsapp); if (value.min_order_value != null && (!Number.isFinite(value.min_order_value) || value.min_order_value < 0)) fail('Pedido mínimo inválido.');
+    normalizePhone(value.whatsapp);
+    if (value.loyalty_points_goal != null && (!Number.isInteger(value.loyalty_points_goal) || value.loyalty_points_goal < 1 || value.loyalty_points_goal > 100000)) fail('Meta de pontos inválida.');
+    if (value.loyalty_points_per_real != null && (!Number.isInteger(value.loyalty_points_per_real) || value.loyalty_points_per_real < 1 || value.loyalty_points_per_real > 100)) fail('Pontuação por real inválida.');
+    if (value.loyalty_discount_percent != null && (!Number.isFinite(value.loyalty_discount_percent) || value.loyalty_discount_percent < 0 || value.loyalty_discount_percent > 100 || (value.loyalty_enabled !== false && value.loyalty_discount_percent === 0))) fail('Desconto de fidelidade inválido. Use um percentual maior que zero e até 100.');
+    for (const key of ['loyalty_min_order_value', 'loyalty_max_discount_value']) if (value[key] != null && (!Number.isFinite(value[key]) || value[key] < 0 || (key === 'loyalty_max_discount_value' && value.loyalty_enabled !== false && value[key] === 0))) fail('Confira o valor mínimo e o limite de desconto da fidelidade.');
+    if (value.min_order_value != null && (!Number.isFinite(value.min_order_value) || value.min_order_value < 0)) fail('Pedido mínimo inválido.');
     for (const d of Object.values(value.weekly_schedule || {})) if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.open) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.close)) fail('Horário inválido.');
     return;
   }
   if (!Array.isArray(value) || value.length > 5000) fail('Lista inválida.');
+  if (key === 'alfa_sales_goals') {
+    const months = new Set();
+    if (value.length > 240) fail('Limite de metas excedido.');
+    for (const goal of value) {
+      if (!goal || !/^\d{4}-(0[1-9]|1[0-2])$/.test(goal.month || '') || months.has(goal.month)) fail('Mês de meta inválido ou duplicado.');
+      if (!Number.isFinite(goal.amount) || goal.amount <= 0 || goal.amount > 1e9 || Math.abs(goal.amount * 100 - Math.round(goal.amount * 100)) > 0.00001) fail('Valor da meta inválido.');
+      months.add(goal.month);
+    }
+    return;
+  }
+  if (key === 'alfa_cash_closures') {
+    if (!Array.isArray(value) || value.length > 2000) fail('Fechamentos inválidos.');
+    const dates = new Set();
+    for (const c of value) {
+      if (!c || !/^\d{4}-\d{2}-\d{2}$/.test(c.date || '') || !Number.isFinite(Date.parse(c.date + 'T12:00:00Z')) || dates.has(c.date)) fail('Data de fechamento inválida ou duplicada.');
+      dates.add(c.date);
+      for (const field of ['expected', 'counted', 'difference', 'sales_receipts', 'order_receipts', 'expenses_paid']) {
+        if (!Number.isFinite(c[field]) || Math.abs(c[field]) > 1e10) fail('Valor de fechamento inválido.');
+      }
+      if (Math.abs(Math.round((c.counted - c.expected - c.difference)*100)) > 1) fail('Diferença de fechamento inconsistente.');
+      if (!/^\d{4}-\d{2}-\d{2}T/.test(c.closed_at || '') || !text(c.id, 100)) fail('Registro de fechamento inválido.');
+      if (c.notes != null && (typeof c.notes !== 'string' || c.notes.length > 500)) fail('Observação muito longa.');
+    }
+    return;
+  }
+  if (key === 'alfa_expenses') {
+    const ids = new Set();
+    for (const e of value) {
+      if (!e || typeof e.id !== 'string' || !e.id || ids.has(e.id)) fail('Despesa com ID inválido.');
+      ids.add(e.id);
+      if (!text(e.description, 160) || !text(e.category, 60)) fail('Informe descrição e categoria.');
+      if (!Number.isFinite(e.amount) || e.amount <= 0 || Math.abs(Math.round(e.amount * 100) - e.amount * 100) > 1e-6) fail('Valor da despesa inválido.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(e.due_date || '') || !Number.isFinite(Date.parse(e.due_date + 'T12:00:00Z'))) fail('Vencimento inválido.');
+      if (!['pending','paid','cancelled'].includes(e.status)) fail('Situação inválida.');
+      if (e.status === 'paid' && (!/^\d{4}-\d{2}-\d{2}$/.test(e.paid_date || '') || !Number.isFinite(Date.parse(e.paid_date + 'T12:00:00Z')))) fail('Data do pagamento inválida.');
+      if (e.status === 'paid' && !text(e.payment_method, 60)) fail('Informe a forma de pagamento.');
+    }
+    return;
+  }
+  if (key === 'alfa_sales') {
+    const ids = new Set();
+    for (const sale of value) {
+      if (!sale || typeof sale.id !== 'string' || !sale.id || ids.has(sale.id)) fail('Venda com identificador inválido.');
+      ids.add(sale.id);
+      if (!text(sale.customer_name, 100) || !text(sale.customer_phone, 30)) fail('Informe nome e telefone do cliente.');
+      if (!Number.isFinite(sale.total) || sale.total <= 0 || !Number.isFinite(sale.paid_amount) || sale.paid_amount < 0 || sale.paid_amount > sale.total) fail('Valores da venda inválidos.');
+      if (!['paid', 'open', 'partial', 'cancelled'].includes(sale.payment_status)) fail('Situação financeira inválida.');
+      if (sale.discount_value != null && (!Number.isFinite(sale.discount_value) || sale.discount_value < 0 || sale.discount_value > sale.total)) fail('Desconto da venda inválido.');
+      if (sale.subtotal != null && (!Number.isFinite(sale.subtotal) || sale.subtotal < sale.total)) fail('Subtotal da venda inválido.');
+      if (!Array.isArray(sale.items) || sale.items.length < 1 || sale.items.length > 100) fail('Itens da venda inválidos.');
+    }
+    return;
+  }
+  if (key === 'alfa_customer_profiles') {
+    const ids = new Set();
+    const phones = new Set();
+    for (const customer of value) {
+      const phone = String(customer?.phone || '').replace(/\D/g, '');
+      if (!customer || typeof customer.id !== 'string' || !customer.id || ids.has(customer.id)) fail('Cadastro de cliente inválido.');
+      if (!text(customer.name, 100) || phone.length < 10 || phone.length > 13 || phones.has(phone)) fail('Nome ou telefone inválido/duplicado.');
+      if (customer.credit_limit != null && (!Number.isFinite(customer.credit_limit) || customer.credit_limit < 0)) fail('Limite de crédito inválido.');
+      ids.add(customer.id); phones.add(phone);
+    }
+    return;
+  }
   const ids = new Set();
   const categories = await get('alfa_categories');
   for (const item of value) {
@@ -197,7 +385,7 @@ async function bootstrap(isAdmin) {
   const data = {}, versions = {};
   const records = await db.getAllRecords();
   for (const row of records) {
-    if (!isAdmin && row.key === 'alfa_coupons') continue;
+    if (!isAdmin && ['alfa_coupons', 'alfa_sales', 'alfa_customer_profiles', 'alfa_expenses', 'alfa_cash_closures', 'alfa_stock_movements', 'alfa_sales_goals', 'alfa_loyalty_points'].includes(row.key)) continue;
     data[row.key] = row.value;
     versions[row.key] = row.version;
   }
@@ -206,6 +394,7 @@ async function bootstrap(isAdmin) {
   data.alfa_customers = [];
   if (isAdmin) {
     const byPhone = new Map();
+    const settings = await get('alfa_settings');
     for (const o of orders.filter(o => o.status !== 'cancelled')) {
       let c = byPhone.get(o.customer_phone);
       if (!c) {
@@ -215,8 +404,20 @@ async function bootstrap(isAdmin) {
       c.orders_count++; c.total_spent += o.total; c.average_ticket = c.total_spent / c.orders_count;
       if (o.address) c.addresses.push({ street: o.address, number: o.address_number, neighborhood: o.neighborhood_name });
     }
+    const loyaltyLedger = await get('alfa_loyalty_points');
+    for (const [phone, cust] of byPhone.entries()) {
+      const loyalty = statusFor(loyaltyLedger, phone, settings);
+      cust.loyalty_points = loyalty.points;
+      cust.loyalty_stamps = loyalty.points;
+      cust.loyalty_has_reward = loyalty.has_reward;
+      cust.loyalty_rewards_count = loyalty.rewards_redeemed_count;
+      cust.loyalty_history = loyalty.history;
+    }
     data.alfa_customers = [...byPhone.values()];
   }
+  data.alfa_public_offers = publicOffers(await get('alfa_coupons'));
+  data.alfa_bestsellers = bestsellerIds(orders);
+  data.alfa_loyalty_program = pointsConfig(await get('alfa_settings'));
   return { admin: isAdmin, configured: !!process.env.ADMIN_PASSWORD_HASH, data, versions };
 }
 
@@ -225,6 +426,12 @@ function send(res, status, value, headers = {}) {
   res.end(JSON.stringify(value));
 }
 
+const updateClients = new Set();
+let updateRevision = 0;
+function notifyUpdates() {
+  const message = `event: update\nid: ${++updateRevision}\ndata: {}\n\n`;
+  for (const client of updateClients) { if (!client.destroyed) client.write(message); }
+}
 const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self' https://viacep.com.br; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -256,6 +463,96 @@ const server = http.createServer(async (req, res) => {
         if (req.headers['sec-fetch-site'] === 'cross-site') fail('Requisição não autorizada.', 403);
       }
       const isAdmin = await session(req);
+      if (req.method === 'GET' && url.pathname === '/api/events') {
+        if (updateClients.size >= 100) return send(res,503,{error:'Atualização automática temporariamente indisponível.'});
+        res.writeHead(200, {'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
+        res.write('retry: 3000\nevent: update\ndata: {}\n\n');
+        updateClients.add(res);
+        const heartbeat = setInterval(() => res.write(': keep-alive\n\n'),25000);
+        req.on('close',() => { clearInterval(heartbeat); updateClients.delete(res); });
+        return;
+      }
+      if (['POST','PUT','PATCH','DELETE'].includes(req.method) && /^\/api\/(data|catalog|orders)(?:\/|$)/.test(url.pathname)) {
+        res.on('finish',() => { if (res.statusCode < 400) notifyUpdates(); });
+      }
+
+      // Read-only administrative audit, limited and filtered on the server.
+      if (url.pathname === '/api/admin/audit' || url.pathname === '/api/admin/audit.csv') {
+        if (!isAdmin) fail('Acesso administrativo necessário.', 401);
+        if (req.method !== 'GET') fail('Método não permitido.', 405);
+        rate(req, 'audit-read', 60, 60000);
+        const fromDate = url.searchParams.get('from') || '';
+        const toDate = url.searchParams.get('to') || '';
+        const action = text(url.searchParams.get('action') || '', 100);
+        if ((fromDate && !/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) || (toDate && !/^\d{4}-\d{2}-\d{2}$/.test(toDate))) fail('Data inválida.', 400);
+        if (fromDate && toDate && fromDate > toDate) fail('Período inválido.', 400);
+        const toExclusive = toDate ? new Date(Date.parse(toDate + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10) : '';
+        if (toDate && !Number.isFinite(Date.parse(toDate + 'T00:00:00Z'))) fail('Data inválida.', 400);
+        const rows = await db.listAudit({ from: fromDate, to: toExclusive, action, limit: url.pathname.endsWith('.csv') ? 1000 : 200 });
+        if (url.pathname.endsWith('.csv')) {
+          const csvCell = value => '"' + String(value ?? '').replace(/^[=+@\-\t\r]/, "'").replace(/"/g, '""') + '"';
+          const csv = '\ufeff' + ['Data/Hora;Ação;Recurso', ...rows.map(row => [row.at, row.action, row.resource].map(csvCell).join(';'))].join('\r\n');
+          res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="auditoria-alfa.csv"', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+          return res.end(csv);
+        }
+        return send(res, 200, { rows, limit: 200 });
+      }
+
+      // Backups are restricted to authenticated administrators and local SQLite installations.
+      if (url.pathname.startsWith('/api/admin/backups')) {
+        if (!isAdmin) fail('Acesso administrativo necessário.', 401);
+        if (db.type !== 'sqlite') fail('Backup pelo painel disponível apenas para SQLite.', 400);
+        const backupDir = backupDirectory();
+        const entries = () => listBackups(backupDir);
+        fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
+        const retentionFile = path.join(backupDir, 'retention-policy.json');
+        const retentionPolicy = () => {
+          try { const data = JSON.parse(fs.readFileSync(retentionFile, 'utf8')); return [5, 10, 20, 30, 50].includes(data.keep) ? data.keep : 10; }
+          catch { return 10; }
+        };
+        if (req.method === 'GET' && url.pathname === '/api/admin/backups/health') {
+          const files = entries();
+          const last = files[0]?.createdAt || null;
+          const integrity = db.sqliteDb.prepare('PRAGMA quick_check').all().map(x => Object.values(x)[0]);
+          const keep = retentionPolicy();
+          return send(res, 200, { database: 'SQLite', integrityOk: integrity.length === 1 && integrity[0] === 'ok', lastBackupAt: last, backupCount: files.length, backupStale: !last || Date.now() - Date.parse(last) > 7 * 86400000, retentionKeep: keep, excessBackups: Math.max(0, files.length - keep), automaticDeletion: false });
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/backups/retention') {
+          rate(req, 'retention', 10, 3600000);
+          const payload = await body(req);
+          if (![5, 10, 20, 30, 50].includes(payload.keep)) fail('Escolha uma quantidade válida de backups.', 400);
+          const temp = retentionFile + '.tmp-' + randomBytes(4).toString('hex');
+          try { fs.writeFileSync(temp, JSON.stringify({ keep: payload.keep }), { flag: 'wx', mode: 0o600 }); fs.renameSync(temp, retentionFile); }
+          finally { try { fs.rmSync(temp, { force: true }); } catch {} }
+          await audit('backup_retention_updated', String(payload.keep));
+          return send(res, 200, { ok: true, keep: payload.keep, automaticDeletion: false });
+        }
+        if (req.method === 'GET' && url.pathname === '/api/admin/backups') {
+          const files = entries();
+          const last = files[0]?.createdAt || null;
+          return send(res, 200, { files, lastBackupAt: last, stale: !last || Date.now() - Date.parse(last) > 7 * 86400000 });
+        }
+        if (req.method === 'GET' && url.pathname === '/api/admin/backups/integrity') {
+          const result = db.sqliteDb.prepare('PRAGMA integrity_check').all().map(x => Object.values(x)[0]);
+          return send(res, 200, { ok: result.length === 1 && result[0] === 'ok', result });
+        }
+        if (req.method === 'POST' && url.pathname === '/api/admin/backups') {
+          rate(req, 'backup', 5, 3600000);
+          const { name } = await createBackup(db.sqliteDb, backupDir);
+          await audit('backup_created', name);
+          return send(res, 201, { ok: true, name });
+        }
+        const downloadMatch = url.pathname.match(/^\/api\/admin\/backups\/download\/([^/]+)$/);
+        if (req.method === 'GET' && downloadMatch && isBackupName(downloadMatch[1])) {
+          const name = downloadMatch[1];
+          if (!entries().some(x => x.name === name)) fail('Backup não encontrado.', 404);
+          const file = path.join(backupDir, name);
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename="${name}"`, 'Content-Length': fs.statSync(file).size, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+          fs.createReadStream(file).pipe(res);
+          return;
+        }
+        fail('Recurso não encontrado.', 404);
+      }
 
       if (req.method === 'GET' && url.pathname === '/api/bootstrap') {
         return send(res, 200, await bootstrap(isAdmin));
@@ -335,6 +632,38 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { url: `/uploads/${fileId}`, filename: fileId, size: buffer.length });
       }
 
+      // Movimentações de estoque: transação única para quantidade, histórico e auditoria.
+      if (url.pathname === '/api/stock' && req.method === 'GET') {
+        if (!isAdmin) fail('Acesso administrativo necessário.', 401);
+        return send(res, 200, { movements: await get('alfa_stock_movements') });
+      }
+      if (url.pathname === '/api/stock' && req.method === 'POST') {
+        if (!isAdmin) fail('Acesso administrativo necessário.', 401);
+        rate(req, 'stock', 60);
+        const input = await body(req);
+        if (typeof input.product_id !== 'string' || !['entry', 'adjustment'].includes(input.type)) fail('Movimentação inválida.');
+        if (!Number.isSafeInteger(input.quantity) || input.quantity < 0 || input.quantity > 1000000) fail('Quantidade inválida.');
+        if (input.type === 'entry' && input.quantity === 0) fail('Informe uma quantidade positiva.');
+        const note = text(input.note || '', 180);
+        const result = await db.transaction(async tx => {
+          const products = await tx.getRecord('alfa_products');
+          const p = products.find(x => x.id === input.product_id && !x.is_archived);
+          if (!p || !p.has_stock_control) fail('Produto sem controle de estoque ativo.', 404);
+          const before = p.stock_quantity;
+          const after = input.type === 'entry' ? before + input.quantity : input.quantity;
+          if (!Number.isSafeInteger(after) || after > 100000000) fail('Estoque fora do limite permitido.');
+          p.stock_quantity = after;
+          const movements = await tx.getRecord('alfa_stock_movements');
+          const movement = { id: randomUUID(), product_id: p.id, product_name: p.name, type: input.type, quantity: input.type === 'entry' ? input.quantity : after - before, before, after, note, created_at: new Date().toISOString() };
+          movements.unshift(movement);
+          await tx.putRecord('alfa_products', products);
+          await tx.putRecord('alfa_stock_movements', movements);
+          await tx.addAudit(randomUUID(), movement.created_at, 'stock_movement', `${p.id} | ${before} -> ${after} | ${input.type}`);
+          return movement;
+        });
+        return send(res, 200, result);
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/catalog/product') {
         if (!isAdmin) fail('Acesso administrativo necessário.', 401);
         const input = await body(req);
@@ -375,6 +704,7 @@ const server = http.createServer(async (req, res) => {
       if (req.method === 'PUT' && url.pathname.startsWith('/api/data/')) {
         if (!isAdmin) fail('Entre no painel para alterar dados.', 401);
         const key = url.pathname.slice(10);
+        if (key === 'alfa_loyalty_points') fail('Movimentações de pontos são registradas exclusivamente pelos pedidos.', 403);
         const current = await db.getRecordWithVersion(key);
         if (!current) fail('Recurso inválido.', 404);
         const input = await body(req);
@@ -385,16 +715,81 @@ const server = http.createServer(async (req, res) => {
           if (!rec || rec.version !== input.version) {
             fail('Os dados foram alterados em outro dispositivo. Atualize e tente novamente.', 409);
           }
+          // Financial audit is written atomically with the updated record.
+          // No financial values are recalculated and no historical rows are changed.
+          if (key === 'alfa_sales') {
+            const previous = Array.isArray(rec.value) ? rec.value : await tx.getRecord(key);
+            const before = new Map(previous.map(sale => [sale.id, sale]));
+            for (const sale of input.value) {
+              const old = before.get(sale.id);
+              const now = new Date().toISOString();
+              const log = async (action, detail) => tx.addAudit(randomUUID(), now, action, `${sale.id} | ${detail}`);
+              if (!old) {
+                await log('sale_created', `total=${sale.total}; paid=${sale.paid_amount}; status=${sale.payment_status}`);
+                continue;
+              }
+              if (old.payment_status !== sale.payment_status) {
+                await log(sale.payment_status === 'cancelled' ? 'sale_cancelled' : 'sale_payment_status_changed', `${old.payment_status} -> ${sale.payment_status}`);
+              }
+              if (old.paid_amount !== sale.paid_amount) {
+                await log('sale_payment_amount_changed', `${old.paid_amount} -> ${sale.paid_amount}`);
+              }
+              if (old.discount_value !== sale.discount_value || old.total !== sale.total) {
+                await log('sale_amount_adjusted', `total ${old.total} -> ${sale.total}; discount ${old.discount_value ?? 0} -> ${sale.discount_value ?? 0}`);
+              }
+            }
+            const nextIds = new Set(input.value.map(sale => sale.id));
+            for (const old of previous) {
+              if (!nextIds.has(old.id)) await tx.addAudit(randomUUID(), new Date().toISOString(), 'sale_removed', old.id);
+            }
+          }
           await tx.putRecord(key, input.value);
+          if (key === 'alfa_cash_closures') {
+            const oldRows = Array.isArray(rec.value) ? rec.value : [];
+            for (const row of input.value) {
+              const old = oldRows.find(x => x.date === row.date);
+              if (!old || JSON.stringify(old) !== JSON.stringify(row)) await tx.addAudit(randomUUID(), new Date().toISOString(), old ? 'cash_closure_updated' : 'cash_closure_created', `${row.date} | esperado=${row.expected} | conferido=${row.counted} | diferenca=${row.difference}`);
+            }
+          }
+          if (key === 'alfa_expenses') {
+            const previous = Array.isArray(rec.value) ? rec.value : [];
+            const oldById = new Map(previous.map(e => [e.id, e]));
+            for (const e of input.value) {
+              const old = oldById.get(e.id);
+              if (!old || JSON.stringify(old) !== JSON.stringify(e)) {
+                await tx.addAudit(randomUUID(), new Date().toISOString(), !old ? 'expense_created' : e.status === 'cancelled' ? 'expense_cancelled' : e.status === 'paid' && old.status !== 'paid' ? 'expense_paid' : 'expense_updated', `${e.id} | ${e.description} | R$ ${e.amount} | ${e.status}`);
+              }
+            }
+            const nextIds = new Set(input.value.map(e => e.id));
+            if (previous.some(e => !nextIds.has(e.id))) fail('Exclusão de despesa não permitida. Cancele o lançamento.', 400);
+          }
           await tx.addAudit(randomUUID(), new Date().toISOString(), 'update', key);
         });
         return send(res, 200, { version: current.version + 1 });
       }
 
+      if (req.method === 'GET' && url.pathname === '/api/loyalty') {
+        rate(req, 'loyalty', 60);
+        const phoneParam = url.searchParams.get('phone');
+        if (!phoneParam) fail('Telefone não informado.');
+        const settings = await get('alfa_settings');
+        const ledger = await get('alfa_loyalty_points');
+        const loyalty = statusFor(ledger, phoneParam, settings);
+        return send(res, 200, loyalty);
+      }
+
       if (req.method === 'POST' && url.pathname === '/api/quote') {
         rate(req, 'quote', 50);
         const q = await calculate(await body(req));
-        return send(res, 200, { subtotal: q.subtotal, delivery_fee: q.delivery_fee, discount_value: q.discount_value, total: q.total, coupon_code: q.coupon_code });
+        return send(res, 200, {
+          subtotal: q.subtotal,
+          delivery_fee: q.delivery_fee,
+          discount_value: q.discount_value,
+          total: q.total,
+          coupon_code: q.coupon_code,
+          used_loyalty_reward: q.used_loyalty_reward,
+          loyalty_discount: q.loyalty_discount
+        });
       }
 
       if (req.method === 'POST' && url.pathname === '/api/orders') {
@@ -412,6 +807,7 @@ const server = http.createServer(async (req, res) => {
           }
           const id = randomUUID(), token = randomBytes(32).toString('hex');
           const number = await tx.getNextOrderNumber();
+          const settings = await tx.getRecord('alfa_settings');
           const order = {
             id,
             order_number: number,
@@ -428,6 +824,11 @@ const server = http.createServer(async (req, res) => {
             subtotal: q.subtotal,
             discount_value: q.discount_value,
             coupon_code: q.coupon_code,
+            used_loyalty_reward: !!q.used_loyalty_reward,
+            loyalty_discount: q.loyalty_discount || 0,
+            loyalty_stamp_earned: false,
+            loyalty_points_earned: 0,
+            loyalty_points_redeemed: 0,
             total: q.total,
             payment_method: input.payment_method,
             payment_status: 'pending',
@@ -438,25 +839,39 @@ const server = http.createServer(async (req, res) => {
             preorder_date: input.preorder_date || null,
             preorder_time: input.preorder_time || null,
             items: q.items.map(i => ({ ...i, order_id: id })),
-            stock_reservations: [...q.requested]
-              .filter(async ([pid]) => {
-                const products = await get('alfa_products');
-                return products.find(p => p.id === pid)?.has_stock_control;
-              })
-              .map(([product_id, quantity]) => ({ product_id, quantity })),
+            stock_reservations: [...q.requested].map(([product_id, quantity]) => ({ product_id, quantity })),
             created_at: new Date().toISOString(),
             tracking_token: token,
             audit_logs: []
           };
 
-          await tx.insertOrder(id, number, hash(token), idem, order);
-          const products = await tx.getRecord('alfa_products');
+          const prodRecord = await (tx.getRecordForUpdate ? tx.getRecordForUpdate('alfa_products') : tx.getRecordWithVersion('alfa_products'));
+          const products = Array.isArray(prodRecord?.value) ? prodRecord.value : [];
+          const prodVersion = prodRecord?.version;
+          const movements = await tx.getRecord('alfa_stock_movements');
+          order.stock_reservations = order.stock_reservations.filter(r => products.some(p => p.id === r.product_id && p.has_stock_control));
           for (const p of products) {
             if (p.has_stock_control && q.requested.has(p.id)) {
-              p.stock_quantity -= q.requested.get(p.id);
+              const before = p.stock_quantity;
+              const quantity = q.requested.get(p.id);
+              if (before < quantity) fail(`Estoque insuficiente para ${p.name}.`, 409);
+              p.stock_quantity -= quantity;
+              movements.unshift({ id: randomUUID(), product_id:p.id, product_name:p.name, type:'sale', quantity:-quantity, before, after:p.stock_quantity, note:`Pedido ${number}`, created_at:new Date().toISOString(), order_id:id });
             }
           }
-          await tx.putRecord('alfa_products', products);
+          await tx.putRecord('alfa_products', products, prodVersion);
+          await tx.putRecord('alfa_stock_movements', movements);
+          const ledger = await tx.getRecord('alfa_loyalty_points');
+          if (q.used_loyalty_reward) {
+            const balance = statusFor(ledger, order.customer_phone, settings);
+            if (balance.points < balance.goal) fail('Saldo de pontos insuficiente. Atualize o pedido.', 409);
+            order.loyalty_points_redeemed = balance.goal;
+            appendEntry(ledger, order, 'redeem', -balance.goal);
+          }
+          order.loyalty_points_earned = awardPoints(order, settings);
+          appendEntry(ledger, order, 'earn', order.loyalty_points_earned);
+          await tx.putRecord('alfa_loyalty_points', ledger);
+          await tx.insertOrder(id, number, hash(token), idem, order);
 
           if (q.coupon) {
             const coupons = await tx.getRecord('alfa_coupons');
@@ -511,11 +926,21 @@ const server = http.createServer(async (req, res) => {
           await db.transaction(async tx => {
             if (status === 'cancelled') {
               const products = await tx.getRecord('alfa_products');
+              const movements = await tx.getRecord('alfa_stock_movements');
               for (const item of order.stock_reservations || []) {
-                const p = products.find(p => p.id === item.product_id);
-                if (p) p.stock_quantity += item.quantity;
+                const p = products.find(p => p.id === item.product_id && p.has_stock_control);
+                if (p) {
+                  const before = p.stock_quantity;
+                  p.stock_quantity += item.quantity;
+                  movements.unshift({ id:randomUUID(), product_id:p.id, product_name:p.name, type:'cancellation', quantity:item.quantity, before, after:p.stock_quantity, note:`Cancelamento pedido ${order.order_number}`, created_at:new Date().toISOString(), order_id:order.id });
+                }
               }
               await tx.putRecord('alfa_products', products);
+              await tx.putRecord('alfa_stock_movements', movements);
+              const ledger = await tx.getRecord('alfa_loyalty_points');
+              appendEntry(ledger, order, 'reverse_earn', -Number(order.loyalty_points_earned || 0));
+              appendEntry(ledger, order, 'refund_redeem', Number(order.loyalty_points_redeemed || 0));
+              await tx.putRecord('alfa_loyalty_points', ledger);
             }
             if (!order.audit_logs) order.audit_logs = [];
             order.audit_logs.unshift({
@@ -529,7 +954,7 @@ const server = http.createServer(async (req, res) => {
             order.status = status;
             order.updated_at = new Date().toISOString();
             await tx.updateOrder(order.id, order);
-            await tx.addAudit(randomUUID(), new Date().toISOString(), 'order_status', order.id);
+            await tx.addAudit(randomUUID(), new Date().toISOString(), status === 'cancelled' ? 'order_cancelled' : 'order_status', `${order.id} | ${row.data.status} -> ${status}`);
           });
           return send(res, 200, privateOrder(order));
         }
@@ -559,9 +984,12 @@ const server = http.createServer(async (req, res) => {
               notes: text(notes, 200) || undefined
             });
             order.payment_status = payment_status;
+            // Somente novas confirmações recebem data de recebimento; registros antigos não são presumidos.
+            if (payment_status === 'confirmed') order.payment_confirmed_at = new Date().toISOString();
+            else order.payment_confirmed_at = null;
             order.updated_at = new Date().toISOString();
             await tx.updateOrder(order.id, order);
-            await tx.addAudit(randomUUID(), new Date().toISOString(), 'order_payment', order.id);
+            await tx.addAudit(randomUUID(), new Date().toISOString(), 'order_payment', `${order.id} | ${previousPaymentStatus} -> ${payment_status}`);
           });
           return send(res, 200, privateOrder(order));
         }
@@ -610,7 +1038,9 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, process.env.HOST || '0.0.0.0', () => {
   const p = server.address().port;
   console.log(`Alfa Delivery disponível em http://localhost:${p}`);
-  const nets = os.networkInterfaces();
+  let nets = {};
+  try { nets = os.networkInterfaces(); }
+  catch { console.warn('Não foi possível listar os endereços da rede local. O servidor continua disponível no endereço configurado.'); }
   for (const name of Object.keys(nets)) {
     for (const net of nets[name] || []) {
       if (net.family === 'IPv4' && !net.internal) {

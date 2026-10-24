@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { StoreSettings, Product } from '../../types';
 import { StorageService } from '../../services/storageService';
 import { productPrice } from '../../domain/rules';
@@ -23,6 +23,7 @@ interface Props {
 }
 
 export const HeroSection: React.FC<Props> = ({
+  settings,
   onScrollToMenu,
   onSelectCategory,
   onSelectProduct,
@@ -30,6 +31,7 @@ export const HeroSection: React.FC<Props> = ({
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<string[]>([]);
+  const [isPaused, setIsPaused] = useState(false);
 
   const products = StorageService.getProducts();
   const categories = StorageService.getCategories();
@@ -48,10 +50,29 @@ export const HeroSection: React.FC<Props> = ({
     )
     .sort((a, b) => a.sort_order - b.sort_order);
 
+  const autoRotate = settings?.banner_auto_rotate !== false;
+  const intervalSeconds = Math.max(1, settings?.banner_rotate_interval || 4);
+  const transitionEffect = settings?.banner_transition_effect || 'slide';
+
   const index = Math.max(0, banners.findIndex(b => b.id === selectedId));
   const banner = banners[index];
   const imageKey = `${banner?.image_desktop || ''}|${(banner?.image_mobile?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_mobile) || ''}`;
   const imageFailed = failedImages.includes(imageKey);
+
+  // Carrossel digital rotativo automático com tempo configurável
+  useEffect(() => {
+    if (!autoRotate || banners.length <= 1 || isPaused) return;
+
+    const timer = setInterval(() => {
+      setSelectedId(prevId => {
+        const currentIndex = Math.max(0, banners.findIndex(b => b.id === prevId));
+        const nextIndex = (currentIndex + 1) % banners.length;
+        return banners[nextIndex].id;
+      });
+    }, intervalSeconds * 1000);
+
+    return () => clearInterval(timer);
+  }, [autoRotate, banners, intervalSeconds, isPaused]);
 
   const title = index === 0 ? 'Seu momento fica muito melhor com Alfa Sabores VCA' : banner?.title || 'Seu momento fica muito melhor com Alfa Sabores VCA';
   const subtitle = index === 0 ? 'Coxinhas douradas, bolinhas de queijo e quibes crocantes fritos na hora com muito carinho' : banner?.subtitle || 'Coxinhas douradas, bolinhas de queijo e quibes crocantes fritos na hora com muito carinho';
@@ -125,7 +146,14 @@ export const HeroSection: React.FC<Props> = ({
   };
 
   return (
-    <section className="store-hero" aria-label="Destaques e informações da loja">
+    <section
+      className="store-hero"
+      aria-label="Destaques e informações da loja"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={() => setIsPaused(true)}
+      onTouchEnd={() => setIsPaused(false)}
+    >
       <div className="store-container">
         <div className="campaign-panel">
           <div className="campaign-copy">
@@ -149,9 +177,9 @@ export const HeroSection: React.FC<Props> = ({
             </div>
           </div>
 
-
           <div className="campaign-visual">
-            <picture key={banner?.id || 'default'}>
+            <picture key={banner?.id || 'default'} className={`banner-effect-${transitionEffect}`} style={{ display: 'block', width: '100%', height: '100%' }}>
+
               <source
                 media="(max-width:640px)"
                 srcSet={imageFailed ? '/hero-artisan.webp' : (banner?.image_mobile?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_mobile) || (banner?.image_desktop?.includes('hero-salgados') ? '/hero-artisan.webp' : banner?.image_desktop) || '/hero-artisan.webp'}

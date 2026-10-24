@@ -76,7 +76,10 @@ export const StorageService = {
       printer_footer_show_website: stored.printer_footer_show_website ?? true,
       printer_footer_show_signature: stored.printer_footer_show_signature ?? false,
       is_paused: stored.is_paused ?? false,
-      pause_message: stored.pause_message || 'Estamos temporariamente sem receber pedidos.'
+      pause_message: stored.pause_message || 'Estamos temporariamente sem receber pedidos.',
+      banner_auto_rotate: stored.banner_auto_rotate ?? true,
+      banner_rotate_interval: stored.banner_rotate_interval ?? 4,
+      banner_transition_effect: stored.banner_transition_effect || 'slide'
     };
   },
   async updateSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {

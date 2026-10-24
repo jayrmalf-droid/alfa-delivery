@@ -26,7 +26,9 @@ import {
   Tag,
   Percent,
   Package,
-  Layers
+  Layers,
+  Clock,
+  Play
 } from 'lucide-react';
 
 export const BannersTab: React.FC = () => {
@@ -36,6 +38,34 @@ export const BannersTab: React.FC = () => {
   const [bannerStatus, setBannerStatus] = useState('all');
   const visibleBanners = banners.filter(banner => normalizeAdminSearch(`${banner.title} ${banner.subtitle || ''} ${banner.button_title || ''}`).includes(normalizeAdminSearch(bannerQuery))
     && (bannerStatus === 'all' || (bannerStatus === 'active' ? banner.is_active : !banner.is_active)));
+
+  const [settings, setSettings] = useState(() => StorageService.getSettings());
+  const [sliderAutoRotate, setSliderAutoRotate] = useState(() => settings.banner_auto_rotate !== false);
+  const [sliderInterval, setSliderInterval] = useState(() => settings.banner_rotate_interval || 4);
+  const [sliderEffect, setSliderEffect] = useState<'slide' | 'fade' | 'zoom'>(() => settings.banner_transition_effect || 'slide');
+  const [savingSlider, setSavingSlider] = useState(false);
+  const [sliderSaveSuccess, setSliderSaveSuccess] = useState(false);
+
+  const handleSaveSliderSettings = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingSlider(true);
+    try {
+      await runSave(() => StorageService.updateSettings({
+        banner_auto_rotate: sliderAutoRotate,
+        banner_rotate_interval: sliderInterval,
+        banner_transition_effect: sliderEffect
+      }));
+      const updated = StorageService.getSettings();
+      setSettings(updated);
+      setSliderAutoRotate(updated.banner_auto_rotate !== false);
+      setSliderInterval(updated.banner_rotate_interval || 4);
+      setSliderEffect(updated.banner_transition_effect || 'slide');
+      setSliderSaveSuccess(true);
+      setTimeout(() => setSliderSaveSuccess(false), 3000);
+    } finally {
+      setSavingSlider(false);
+    }
+  };
 
   const [editingBanner, setEditingBanner] = useState<PromoBanner | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -300,7 +330,193 @@ export const BannersTab: React.FC = () => {
         </button>
       </div>
 
+      {/* Configuração do Carrossel Digital Rotativo (Sliders Automáticos) */}
+      <div
+        className="card banner-carousel-config-card"
+        style={{
+          background: 'linear-gradient(135deg, #fffaf5 0%, #ffffff 100%)',
+          border: '1.5px solid #fed7aa',
+          borderRadius: 16,
+          padding: '18px 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+          boxShadow: '0 4px 14px rgba(234, 88, 12, 0.08)'
+        }}
+        data-admin-ui="panel"
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{
+              width: 42,
+              height: 42,
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #ea580c, #c2410c)',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 10px rgba(234, 88, 12, 0.3)'
+            }}>
+              <Play size={20} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#9a3412', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>Carrossel Digital Rotativo (Sliders Automáticos)</span>
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: 9999,
+                  background: sliderAutoRotate ? '#dcfce7' : '#f1f5f9',
+                  color: sliderAutoRotate ? '#15803d' : '#64748b'
+                }}>
+                  {sliderAutoRotate ? 'ROTAÇÃO ATIVA' : 'PAUSADO'}
+                </span>
+              </h3>
+              <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#7c2d12' }}>
+                Apresente seus banners digitais em rotação contínua na vitrine, ajustando o tempo de exibição e os efeitos visuais.
+              </p>
+            </div>
+          </div>
+
+          <label style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            color: '#9a3412',
+            cursor: 'pointer',
+            background: sliderAutoRotate ? '#ffedd5' : '#f1f5f9',
+            padding: '8px 16px',
+            borderRadius: 9999,
+            border: sliderAutoRotate ? '1.5px solid #ea580c' : '1px solid #cbd5e1',
+            transition: 'all 0.2s'
+          }}>
+            <input
+              type="checkbox"
+              checked={sliderAutoRotate}
+              onChange={(e) => setSliderAutoRotate(e.target.checked)}
+              style={{ width: 18, height: 18, accentColor: '#ea580c' }}
+            />
+            <span>Ativar Rotação Automática na Vitrine</span>
+          </label>
+        </div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 14,
+          paddingTop: 12,
+          borderTop: '1px dashed #fed7aa',
+          alignItems: 'flex-end'
+        }}>
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', fontWeight: 700, color: '#9a3412', marginBottom: 6 }}>
+              <Clock size={14} /> Tempo de Apresentação de Cada Banner:
+            </label>
+            <select
+              value={sliderInterval}
+              onChange={(e) => setSliderInterval(parseInt(e.target.value) || 4)}
+              disabled={!sliderAutoRotate}
+              className="form-input"
+              style={{
+                width: '100%',
+                borderRadius: 10,
+                fontSize: '0.88rem',
+                padding: '9px 12px',
+                background: '#ffffff',
+                border: '1.5px solid #fed7aa',
+                fontWeight: 700,
+                color: '#431407'
+              }}
+              data-admin-ui="field"
+            >
+              <option value={1}>⚡ 1 segundo (1s - Apresentação Ultra Rápida)</option>
+              <option value={2}>⚡ 2 segundos (2s - Transição Ágil)</option>
+              <option value={3}>⏱️ 3 segundos (3s - Dinâmico)</option>
+              <option value={4}>⏱️ 4 segundos (4s - Recomendado)</option>
+              <option value={5}>⏱️ 5 segundos (5s - Equilibrado)</option>
+              <option value={6}>⏱️ 6 segundos (6s - Leitura Confortável)</option>
+              <option value={8}>⏱️ 8 segundos (8s - Leitura Detalhada)</option>
+              <option value={10}>⏳ 10 segundos (10s - Exibição Prolongada)</option>
+              <option value={15}>⏳ 15 segundos (15s - Exibição Lenta)</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', fontWeight: 700, color: '#9a3412', marginBottom: 6 }}>
+              <Sparkles size={14} /> Efeito de Apresentação / Transição:
+            </label>
+            <select
+              value={sliderEffect}
+              onChange={(e) => setSliderEffect(e.target.value as 'slide' | 'fade' | 'zoom')}
+              disabled={!sliderAutoRotate}
+              className="form-input"
+              style={{
+                width: '100%',
+                borderRadius: 10,
+                fontSize: '0.88rem',
+                padding: '9px 12px',
+                background: '#ffffff',
+                border: '1.5px solid #fed7aa',
+                fontWeight: 700,
+                color: '#431407'
+              }}
+              data-admin-ui="field"
+            >
+              <option value="slide">💫 Deslizamento Suave (Slide Lateral Moderno)</option>
+              <option value="fade">✨ Dissolvência Suave (Crossfade / Fade Suave)</option>
+              <option value="zoom">🔍 Zoom Dinâmico Suave (Ken Burns / Escala)</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleSaveSliderSettings}
+              disabled={savingSlider}
+              className="btn btn-primary"
+              style={{
+                padding: '10px 18px',
+                borderRadius: 10,
+                fontSize: '0.88rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: '#ea580c',
+                borderColor: '#ea580c',
+                color: '#ffffff',
+                cursor: 'pointer'
+              }}
+              data-admin-ui="button"
+            >
+              {savingSlider ? (
+                <>
+                  <RefreshCw size={15} className="animate-spin" />
+                  <span>Gravando...</span>
+                </>
+              ) : (
+                <>
+                  <Check size={16} />
+                  <span>Salvar Rotação dos Banners</span>
+                </>
+              )}
+            </button>
+
+            {sliderSaveSuccess && (
+              <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Check size={14} /> Configuração salva!
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
       <section className="campaign-metrics banner-metrics" aria-label="Resumo dos banners"><div><span>Total de banners</span><strong>{banners.length}</strong></div><div><span>Ativos</span><strong>{banners.filter(b=>b.is_active).length}</strong></div><div><span>Inativos</span><strong>{banners.filter(b=>!b.is_active).length}</strong></div></section>
+
       <div className="campaign-filterbar" data-admin-ui="toolbar"><label className="banner-search-label">Buscar banners<input type="search" aria-label="Buscar banners" placeholder="Título, descrição ou botão..." value={bannerQuery} onChange={event=>setBannerQuery(event.target.value)} data-admin-ui="field"/></label><div className="campaign-status-filters" role="group" aria-label="Situação dos banners">{[{id:'all',label:'Todos'},{id:'active',label:'Ativos'},{id:'inactive',label:'Inativos'}].map(item=><button key={item.id} type="button" aria-pressed={bannerStatus===item.id} onClick={()=>setBannerStatus(item.id)} data-admin-ui="button">{item.label}</button>)}</div></div>
       <p className="campaign-results" role="status">{visibleBanners.length} banner(s) encontrado(s)</p>
       {/* Banners List */}
@@ -1513,13 +1729,13 @@ export const BannersTab: React.FC = () => {
                 }}>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: previewTab === 'desktop' ? '1fr 180px' : '1fr',
-                    gap: 12,
+                    gridTemplateColumns: previewTab === 'desktop' ? '1fr 280px' : '1fr',
+                    gap: 14,
                     alignItems: 'center'
                   }} data-admin-ui="grid">
                     <div>
                       <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#f97316', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Sparkles size={11} /> DESTAQUE DA LOJA
+                        <Sparkles size={11} /> DESTAQUE DA LOJA ({previewTab === 'desktop' ? 'VISÃO PC' : 'VISÃO CELULAR'})
                       </span>
                       <h5 style={{ margin: '4px 0', fontSize: '1rem', fontWeight: 800, color: '#fff', lineHeight: 1.3 }}>
                         {formData.title || 'Título do banner promocional'}
@@ -1527,17 +1743,16 @@ export const BannersTab: React.FC = () => {
                       <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
                         {formData.subtitle || 'Subtítulo descritivo com os diferenciais e sabores.'}
                       </p>
-                      <div style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 6, background: '#ea580c', color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>
-                        Ver cardápio <ArrowRight size={11} />
-                      </div>
                     </div>
 
                     <div style={{
-                      height: previewTab === 'desktop' ? 100 : 130,
-                      borderRadius: 10,
+                      height: previewTab === 'desktop' ? 140 : 200,
+                      borderRadius: 12,
                       overflow: 'hidden',
                       background: '#1e293b',
-                      position: 'relative'
+                      position: 'relative',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
                     }}>
                       <img
                         src={currentPreviewImage || '/hero-salgados.webp'}
@@ -1547,65 +1762,72 @@ export const BannersTab: React.FC = () => {
                           (e.target as HTMLImageElement).src = '/hero-salgados.webp';
                         }}
                       />
+
+                      {/* Botão de Isca Flutuante Exibido DIRETAMENTE SOBRE a Imagem (Tanto Desktop quanto Mobile!) */}
+                      {formData.show_floating_button !== false && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: 8,
+                          left: 8,
+                          right: 8,
+                          background: 'rgba(255, 255, 255, 0.96)',
+                          backdropFilter: 'blur(8px)',
+                          borderRadius: 10,
+                          padding: '7px 10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+                          border: '1.5px solid #fed7aa',
+                          zIndex: 5
+                        }}>
+                          <span style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
+                            backgroundColor: '#ffedd5',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#ea580c',
+                            flexShrink: 0
+                          }}>
+                            {renderIconBadge(formData.button_icon)}
+                          </span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <strong style={{ fontSize: '0.78rem', color: '#0f172a', display: 'block', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {formData.button_title || 'Monte seu cento'}
+                            </strong>
+                            <small style={{ fontSize: '0.66rem', color: '#64748b', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {formData.button_subtitle || 'Escolha seus sabores favoritos'}
+                            </small>
+                          </div>
+                          {formData.button_price_text && (
+                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                              <small style={{ display: 'block', fontSize: '0.58rem', color: '#64748b' }}>A PARTIR DE</small>
+                              <strong style={{ fontSize: '0.8rem', color: '#ea580c', fontWeight: 900 }}>
+                                {formData.button_price_text.replace(/a partir de\s*/i, '').trim()}
+                              </strong>
+                            </div>
+                          )}
+                          <span style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: '50%',
+                            backgroundColor: '#ea580c',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <ArrowRight size={12} />
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  {/* Floating hook preview representation */}
-                  {formData.show_floating_button !== false && (
-                    <div style={{
-                      background: '#ffffff',
-                      borderRadius: 12,
-                      padding: '10px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 12,
-                      boxShadow: '0 8px 20px rgba(0,0,0,0.3)',
-                      border: '1.5px solid #fed7aa'
-                    }} data-admin-ui="panel">
-                      <span style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 10,
-                        backgroundColor: '#ffedd5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#ea580c',
-                        flexShrink: 0
-                      }}>
-                        {renderIconBadge(formData.button_icon)}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <strong style={{ fontSize: '0.85rem', color: '#0f172a', display: 'block', lineHeight: 1.2 }}>
-                          {formData.button_title || 'Monte seu cento'}
-                        </strong>
-                        <small style={{ fontSize: '0.72rem', color: '#64748b', display: 'block' }}>
-                          {formData.button_subtitle || 'Escolha seus sabores favoritos'}
-                        </small>
-                      </div>
-                      {formData.button_price_text && (
-                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                          <small style={{ display: 'block', fontSize: '0.65rem', color: '#64748b' }}>A PARTIR DE</small>
-                          <strong style={{ fontSize: '0.9rem', color: '#ea580c', fontWeight: 900 }}>
-                            {formData.button_price_text.replace(/a partir de\s*/i, '').trim()}
-                          </strong>
-                        </div>
-                      )}
-                      <span style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: '50%',
-                        backgroundColor: '#ea580c',
-                        color: '#ffffff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                      }}>
-                        <ArrowRight size={14} />
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 

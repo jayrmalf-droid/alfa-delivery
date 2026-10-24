@@ -59,6 +59,11 @@ export interface StoreSettings {
   order_sound_type?: 'bell' | 'alarm' | 'digital' | 'marimba' | 'cash' | 'siren' | string;
   order_sound_duration?: number; // duration in seconds (ex: 2, 5, 10, 15, 30)
   order_sound_volume?: number; // 0 to 100
+  // Carrossel Rotativo Digital de Banners
+  banner_auto_rotate?: boolean;
+  banner_rotate_interval?: number; // em segundos (1, 2, 3, 4, 5, 6, 8, 10, 15)
+  banner_transition_effect?: 'slide' | 'fade' | 'zoom';
+
   // Programa de Fidelidade (Clube de Selos com Travas)
   loyalty_enabled?: boolean;
   loyalty_program_name?: string;

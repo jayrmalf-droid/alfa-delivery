@@ -1510,21 +1510,21 @@ button:disabled { cursor:not-allowed; opacity:.55; }
     min-width: 44px;
   }
 
-  /* Capa e Header Compacto no Mobile (<= 140px) para produtos above the fold */
+  /* Capa e Header no Mobile: Banner e Botão Isca plenamente visíveis */
   .store-hero {
-    padding-top: 8px !important;
+    padding-top: 12px !important;
   }
   .store-hero .campaign-panel {
     min-height: 0 !important;
     height: auto !important;
-    max-height: 140px !important;
-    border-radius: 14px !important;
+    max-height: none !important;
+    border-radius: 18px !important;
     position: relative !important;
   }
   .store-hero .campaign-copy {
-    padding: 12px 16px !important;
+    padding: 18px 18px 12px !important;
     min-height: 0 !important;
-    height: 140px !important;
+    height: auto !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: center !important;
@@ -1532,30 +1532,75 @@ button:disabled { cursor:not-allowed; opacity:.55; }
   .store-hero .campaign-eyebrow {
     font-size: 9px !important;
     padding: 2px 8px !important;
-    margin-bottom: 2px !important;
+    margin-bottom: 4px !important;
   }
   .store-hero .campaign-copy h1 {
-    font-size: 1.15rem !important;
-    margin: 3px 0 !important;
+    font-size: 1.45rem !important;
+    margin: 4px 0 !important;
     line-height: 1.2 !important;
   }
-  .store-hero .campaign-copy p,
-  .store-hero .campaign-actions,
-  .store-hero .campaign-notes-row,
-  .store-hero .campaign-floating-offer {
-    display: none !important;
-  }
-  .store-hero .benefits-row {
-    display: none !important;
+  .store-hero .campaign-copy p {
+    font-size: 0.85rem !important;
+    line-height: 1.4 !important;
+    color: #e2c8c9 !important;
   }
   .store-hero .campaign-visual {
-    height: 140px !important;
-    opacity: 0.85;
+    position: relative !important;
+    height: 280px !important;
+    min-height: 240px !important;
+    border-radius: 14px !important;
+    overflow: hidden !important;
+    margin: 0 10px 12px !important;
+    opacity: 1 !important;
   }
+  .store-hero .campaign-visual img {
+    height: 100% !important;
+    width: 100% !important;
+    object-fit: cover !important;
+  }
+  .store-hero .campaign-floating-offer {
+    display: flex !important;
+    position: absolute !important;
+    bottom: 10px !important;
+    left: 10px !important;
+    right: 10px !important;
+    z-index: 10 !important;
+    max-width: calc(100% - 20px) !important;
+  }
+
+}
+
+/* Efeitos de Apresentação dos Banners Rotativos */
+@keyframes alfaBannerSlide {
+  from { opacity: 0.4; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes alfaBannerFade {
+  from { opacity: 0.2; }
+  to { opacity: 1; }
+}
+
+@keyframes alfaBannerZoom {
+  from { opacity: 0.4; transform: scale(1.06); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.banner-effect-slide {
+  animation: alfaBannerSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.banner-effect-fade {
+  animation: alfaBannerFade 0.6s ease-in-out both;
+}
+
+.banner-effect-zoom {
+  animation: alfaBannerZoom 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Skeleton Screens Animados */
 @keyframes alfa-shimmer {
+
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }

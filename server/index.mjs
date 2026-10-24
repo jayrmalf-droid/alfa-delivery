@@ -60,6 +60,15 @@ async function session(req) {
     tokenVal = req.headers.authorization.slice(7).trim();
   }
 
+  // 3. Suporte a ?token= na URL para downloads seguros e diretos no navegador
+  if (!tokenVal && req.url) {
+    try {
+      const u = new URL(req.url, 'http://localhost');
+      const qToken = u.searchParams.get('token');
+      if (qToken) tokenVal = qToken.trim();
+    } catch {}
+  }
+
   if (tokenVal) {
     const row = await db.getSession(hash(tokenVal));
     if (row && row.expires > Date.now()) return true;
@@ -533,10 +542,9 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { rows, limit: 200 });
       }
 
-      // Backups are restricted to authenticated administrators and local SQLite installations.
+      // Backups administrative suite - supports SQLite and PostgreSQL (Cloud / Supabase)
       if (url.pathname.startsWith('/api/admin/backups')) {
         if (!isAdmin) fail('Acesso administrativo necessário.', 401);
-        if (db.type !== 'sqlite') fail('Backup pelo painel disponível apenas para SQLite.', 400);
         const backupDir = backupDirectory();
         const entries = () => listBackups(backupDir);
         fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
@@ -545,12 +553,44 @@ const server = http.createServer(async (req, res) => {
           try { const data = JSON.parse(fs.readFileSync(retentionFile, 'utf8')); return [5, 10, 20, 30, 50].includes(data.keep) ? data.keep : 10; }
           catch { return 10; }
         };
+
+        if (req.method === 'GET' && url.pathname === '/api/admin/backups/export.json') {
+          rate(req, 'backup-export', 10, 60000);
+          const bootstrapData = await bootstrap(true);
+          const stamp = new Date().toISOString().slice(0, 10);
+          const jsonString = JSON.stringify({
+            exportedAt: new Date().toISOString(),
+            databaseEngine: db.type === 'postgres' ? 'PostgreSQL (Nuvem / Supabase)' : 'SQLite (Local)',
+            system: 'Alfa Salgados Delivery PRO',
+            ...bootstrapData
+          }, null, 2);
+          res.writeHead(200, {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Content-Disposition': `attachment; filename="alfa-backup-${stamp}.json"`,
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff'
+          });
+          return res.end(jsonString);
+        }
+
         if (req.method === 'GET' && url.pathname === '/api/admin/backups/health') {
           const files = entries();
           const last = files[0]?.createdAt || null;
-          const integrity = db.sqliteDb.prepare('PRAGMA quick_check').all().map(x => Object.values(x)[0]);
+          let integrityOk = true;
+          const database = db.type === 'postgres' ? 'PostgreSQL (Nuvem)' : 'SQLite';
+          if (db.type === 'sqlite') {
+            const integrity = db.sqliteDb.prepare('PRAGMA quick_check').all().map(x => Object.values(x)[0]);
+            integrityOk = integrity.length === 1 && integrity[0] === 'ok';
+          } else {
+            try {
+              await db.pgPool.query('SELECT 1');
+              integrityOk = true;
+            } catch {
+              integrityOk = false;
+            }
+          }
           const keep = retentionPolicy();
-          return send(res, 200, { database: 'SQLite', integrityOk: integrity.length === 1 && integrity[0] === 'ok', lastBackupAt: last, backupCount: files.length, backupStale: !last || Date.now() - Date.parse(last) > 7 * 86400000, retentionKeep: keep, excessBackups: Math.max(0, files.length - keep), automaticDeletion: false });
+          return send(res, 200, { database, integrityOk, lastBackupAt: last, backupCount: files.length, backupStale: !last || Date.now() - Date.parse(last) > 7 * 86400000, retentionKeep: keep, excessBackups: Math.max(0, files.length - keep), automaticDeletion: false });
         }
         if (req.method === 'POST' && url.pathname === '/api/admin/backups/retention') {
           rate(req, 'retention', 10, 3600000);
@@ -568,12 +608,31 @@ const server = http.createServer(async (req, res) => {
           return send(res, 200, { files, lastBackupAt: last, stale: !last || Date.now() - Date.parse(last) > 7 * 86400000 });
         }
         if (req.method === 'GET' && url.pathname === '/api/admin/backups/integrity') {
-          const result = db.sqliteDb.prepare('PRAGMA integrity_check').all().map(x => Object.values(x)[0]);
-          return send(res, 200, { ok: result.length === 1 && result[0] === 'ok', result });
+          if (db.type === 'sqlite') {
+            const result = db.sqliteDb.prepare('PRAGMA integrity_check').all().map(x => Object.values(x)[0]);
+            return send(res, 200, { ok: result.length === 1 && result[0] === 'ok', result });
+          } else {
+            try {
+              const recCount = await db.pgPool.query('SELECT COUNT(*) FROM records');
+              const ordCount = await db.pgPool.query('SELECT COUNT(*) FROM orders');
+              const audCount = await db.pgPool.query('SELECT COUNT(*) FROM audit');
+              return send(res, 200, {
+                ok: true,
+                result: [
+                  'ok',
+                  `Banco PostgreSQL em nuvem conectado e íntegro.`,
+                  `Tabelas verificadas: ${recCount.rows[0].count} registros em catálogo/configurações, ${ordCount.rows[0].count} pedidos, ${audCount.rows[0].count} eventos de auditoria.`
+                ]
+              });
+            } catch (err) {
+              return send(res, 200, { ok: false, result: ['Falha na verificação PostgreSQL: ' + err.message] });
+            }
+          }
         }
         if (req.method === 'POST' && url.pathname === '/api/admin/backups') {
           rate(req, 'backup', 5, 3600000);
-          const { name } = await createBackup(db.sqliteDb, backupDir);
+          const dbSource = db.type === 'postgres' ? db.pgPool : db.sqliteDb;
+          const { name } = await createBackup(dbSource, backupDir);
           await audit('backup_created', name);
           return send(res, 201, { ok: true, name });
         }

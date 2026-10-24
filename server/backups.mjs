@@ -32,7 +32,34 @@ export async function createBackup(database, directory = backupDirectory()) {
   const target = path.join(directory, name);
   const partial = target + '.partial';
   try {
-    await backup(database, partial);
+    if (database && typeof database.query === 'function') {
+      // PostgreSQL pool or client: build standard SQLite snapshot
+      const syncDb = new DatabaseSync(partial);
+      syncDb.exec(`
+        PRAGMA journal_mode=WAL;
+        CREATE TABLE records (key TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1);
+        CREATE TABLE orders (id TEXT PRIMARY KEY, number INTEGER UNIQUE NOT NULL, token_hash TEXT NOT NULL, idem_hash TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
+        CREATE TABLE audit (id TEXT PRIMARY KEY, at TEXT NOT NULL, action TEXT NOT NULL, resource TEXT NOT NULL);
+      `);
+      const recResult = await database.query('SELECT key, value, version FROM records');
+      const insertRec = syncDb.prepare('INSERT INTO records (key, value, version) VALUES (?, ?, ?)');
+      for (const row of recResult.rows) {
+        insertRec.run(row.key, typeof row.value === 'string' ? row.value : JSON.stringify(row.value), row.version || 1);
+      }
+      const ordResult = await database.query('SELECT id, number, token_hash, idem_hash, data FROM orders');
+      const insertOrd = syncDb.prepare('INSERT INTO orders (id, number, token_hash, idem_hash, data) VALUES (?, ?, ?, ?, ?)');
+      for (const row of ordResult.rows) {
+        insertOrd.run(row.id, row.number, row.token_hash, row.idem_hash, typeof row.data === 'string' ? row.data : JSON.stringify(row.data));
+      }
+      const audResult = await database.query('SELECT id, at, action, resource FROM audit');
+      const insertAud = syncDb.prepare('INSERT INTO audit (id, at, action, resource) VALUES (?, ?, ?, ?)');
+      for (const row of audResult.rows) {
+        insertAud.run(row.id, row.at, row.action, row.resource);
+      }
+      syncDb.close();
+    } else {
+      await backup(database, partial);
+    }
     fs.chmodSync(partial, 0o600);
     verifyBackup(partial);
     fs.renameSync(partial, target);
@@ -41,3 +68,4 @@ export async function createBackup(database, directory = backupDirectory()) {
     fs.rmSync(partial, { force: true });
   }
 }
+

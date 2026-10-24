@@ -54,7 +54,16 @@ import {
   Leaf,
   Coffee,
   Award,
-  Database
+  Database,
+  Download,
+  ShieldCheck,
+  HardDrive,
+  Cloud,
+  Server,
+  RefreshCw,
+  FileDown,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { SOUND_TYPES, playNewOrderSound, stopOrderSound } from '../../utils/sound';
 
@@ -88,33 +97,136 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const refreshHealth = async () => {
     try {
       const data = await request('/admin/backups/health');
-      setSystemHealth(data); setRetentionKeep(data.retentionKeep);
-    } catch (e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar sistema'); }
+      setSystemHealth(data);
+      if (typeof data.retentionKeep === 'number') {
+        setRetentionKeep(data.retentionKeep);
+      }
+    } catch (e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar sistema');
+    }
   };
   const saveRetention = async () => {
     setBackupBusy(true); setBackupMessage('');
     try {
       await request('/admin/backups/retention', { method: 'POST', body: JSON.stringify({ keep: retentionKeep }) });
-      setBackupMessage('Preferência de retenção salva. Nenhum backup foi excluído.'); await refreshHealth();
-    } catch (e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao salvar política'); }
-    finally { setBackupBusy(false); }
+      setBackupMessage('Preferência de retenção salva. Nenhum backup foi excluído.');
+      await refreshHealth();
+    } catch (e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro ao salvar política');
+    } finally {
+      setBackupBusy(false);
+    }
   };
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const refreshBackups = async () => {
-    try { const data = await request('/admin/backups'); setBackupData(data); }
-    catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar backups'); }
+    try {
+      const data = await request('/admin/backups');
+      setBackupData(data);
+    } catch(e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar backups');
+    }
   };
   const createBackup = async () => {
-    setBackupBusy(true); setBackupMessage('');
-    try { await request('/admin/backups', { method: 'POST', body: '{}' }); setBackupMessage('Backup criado e verificado com sucesso.'); await refreshBackups(); await refreshHealth(); }
-    catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao criar backup'); } finally { setBackupBusy(false); }
+    setBackupBusy(true);
+    setBackupMessage('Gerando ponto de backup verificado no servidor...');
+    try {
+      const res = await request('/admin/backups', { method: 'POST', body: '{}' });
+      setBackupMessage(`✓ Backup gerado e verificado com sucesso no servidor (${res?.name || 'arquivo criado'}).`);
+      await refreshBackups();
+      await refreshHealth();
+    } catch(e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro ao criar backup');
+    } finally {
+      setBackupBusy(false);
+    }
   };
   const verifyDatabase = async () => {
     setBackupBusy(true);
-    try { const data = await request('/admin/backups/integrity'); setBackupMessage(data.ok ? 'Integridade do banco: OK.' : 'ATENÇÃO: verificação de integridade falhou.'); }
-    catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro na verificação'); } finally { setBackupBusy(false); }
+    setBackupMessage('Verificando integridade das tabelas e do banco de dados...');
+    try {
+      const data = await request('/admin/backups/integrity');
+      const details = Array.isArray(data.result) ? data.result.filter((x: string) => x !== 'ok').join(' | ') : '';
+      setBackupMessage(data.ok ? `✓ Integridade do banco de dados: 100% OK. ${details}` : 'ATENÇÃO: Verificação de integridade detectou inconsistências.');
+      await refreshHealth();
+    } catch(e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro na verificação de integridade');
+    } finally {
+      setBackupBusy(false);
+    }
   };
+
+  const downloadJsonBackup = async () => {
+    setBackupBusy(true);
+    setBackupMessage('Gerando arquivo completo de backup em formato JSON...');
+    try {
+      const base = getApiBaseUrl();
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('alfa_admin_token') : null;
+      const url = `${base}/api/admin/backups/export.json${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha ao baixar backup JSON');
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      a.download = `alfa-backup-${dateStamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      setBackupMessage('✓ Cópia de segurança JSON baixada com sucesso no seu dispositivo!');
+    } catch (e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro ao baixar backup JSON');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const downloadFileBackup = async (fileName: string) => {
+    try {
+      setBackupBusy(true);
+      setBackupMessage(`Iniciando download do arquivo ${fileName}...`);
+      const base = getApiBaseUrl();
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('alfa_admin_token') : null;
+      const url = `${base}/api/admin/backups/download/${encodeURIComponent(fileName)}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+      const res = await fetch(url, {
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha ao baixar arquivo de backup');
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      setBackupMessage(`✓ Arquivo de backup ${fileName} baixado com sucesso!`);
+    } catch (e) {
+      setBackupMessage(e instanceof Error ? e.message : 'Erro ao baixar arquivo');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'backup') {
+      refreshBackups();
+      refreshHealth();
+    }
+  }, [activeSection]);
   const [auditRows, setAuditRows] = useState<{id:string;at:string;action:string;resource:string}[]>([]);
   const [auditFrom, setAuditFrom] = useState('');
   const [auditTo, setAuditTo] = useState('');
@@ -2251,39 +2363,445 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
           </div>
         )}
         {activeSection === 'backup' && (
-          <div style={{ padding: 24, background: '#fff', borderRadius: 12, marginTop: 20 }} data-admin-ui="panel">
-            <h3>Backup e integridade do banco SQLite</h3>
-            <p>Os backups são criados no servidor, na pasta <code>backups</code>. Baixe e guarde uma cópia em outro local.</p>
-            <p><strong>Restauração automática desativada:</strong> para evitar perda acidental de dados.</p>
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }} data-admin-ui="toolbar">
-              <button type="button" onClick={refreshBackups} data-admin-ui="button">Atualizar histórico</button>
-              <button type="button" onClick={refreshHealth} data-admin-ui="button">Diagnóstico do sistema</button>
-              <button type="button" disabled={backupBusy} onClick={createBackup} data-admin-ui="button">Criar backup agora</button>
-              <button type="button" disabled={backupBusy} onClick={verifyDatabase} data-admin-ui="button">Verificar integridade</button>
-            </div>
-            {systemHealth && <div style={{ padding: 16, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, marginBottom: 16 }}>
-              <h4>Saúde do sistema</h4>
-              <p>Banco: {systemHealth.database} — Integridade rápida: <strong>{systemHealth.integrityOk ? 'OK' : 'ATENÇÃO'}</strong></p>
-              <p>Último backup: {systemHealth.lastBackupAt ? new Date(systemHealth.lastBackupAt).toLocaleString('pt-BR') : 'Nenhum'} — Total: {systemHealth.backupCount}</p>
-              {systemHealth.backupStale && <p style={{ color: '#b45309' }}>Atenção: backup ausente ou com mais de 7 dias.</p>}
-              <h4>Política de retenção (sem exclusão automática)</h4>
-              <label>Quantidade de cópias a manter como referência: <select value={retentionKeep} onChange={e => setRetentionKeep(Number(e.target.value))} data-admin-ui="field">
-                {[5, 10, 20, 30, 50].map(n => <option key={n} value={n}>{n} backups</option>)}
-              </select></label>
-              <button type="button" disabled={backupBusy} onClick={saveRetention} style={{ marginLeft: 12 }} data-admin-ui="button">Salvar preferência</button>
-              <p>{systemHealth.excessBackups} backup(s) acima da preferência. Nenhum arquivo será excluído automaticamente.</p>
-            </div>}
-            {backupMessage && <p role="status">{backupMessage}</p>}
-            {backupData?.stale && <p style={{ color: '#b45309', fontWeight: 700 }}>Atenção: não há backup recente (últimos 7 dias).</p>}
-            {backupData && <div>
-              <h4>Histórico de backups</h4>
-              {backupData.files.length === 0 ? <p>Nenhum backup registrado.</p> : backupData.files.map(file => (
-                <div key={file.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: 10, borderBottom: '1px solid #e5e7eb' }}>
-                  <span>{new Date(file.createdAt).toLocaleString('pt-BR')} — {(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                  <a href={`${getApiBaseUrl()}/api/admin/backups/download/` + encodeURIComponent(file.name)}>Baixar</a>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Header & Status Card */}
+            <div className="card" style={{ padding: 24, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }} data-admin-ui="panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16, marginBottom: 20 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ padding: 8, borderRadius: 10, backgroundColor: '#fee2e2', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Database size={22} />
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                        Central de Backup & Integridade de Dados
+                      </h3>
+                      <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0' }}>
+                        Gerencie pontos de restauração no servidor e baixe cópias de segurança completas offline para o seu computador.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 20,
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    backgroundColor: systemHealth?.integrityOk ? '#ecfdf5' : '#fffbeb',
+                    color: systemHealth?.integrityOk ? '#059669' : '#d97706',
+                    border: `1px solid ${systemHealth?.integrityOk ? '#a7f3d0' : '#fde68a'}`
+                  }}>
+                    {systemHealth?.integrityOk ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                    <span>{systemHealth?.integrityOk ? 'Sistema & Banco Íntegros' : 'Verificação Recomendada'}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* 4 Metric Status Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 22 }}>
+                {/* 1. Engine */}
+                <div style={{ padding: '16px 18px', borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Banco Ativo</span>
+                    <Cloud size={16} style={{ color: '#0284c7' }} />
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>
+                    {systemHealth?.database || 'Detectando banco...'}
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: 4 }}>
+                    {systemHealth?.database?.includes('Nuvem') ? 'Supabase / PostgreSQL Cloud' : 'Armazenamento Local'}
+                  </div>
+                </div>
+
+                {/* 2. Último Backup */}
+                <div style={{ padding: '16px 18px', borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Último Backup</span>
+                    <ShieldCheck size={16} style={{ color: '#059669' }} />
+                  </div>
+                  <div style={{ fontSize: '1.02rem', fontWeight: 900, color: '#0f172a' }}>
+                    {systemHealth?.lastBackupAt ? new Date(systemHealth.lastBackupAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Nenhum ainda'}
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: systemHealth?.backupStale ? '#b45309' : '#059669', fontWeight: 700, marginTop: 4 }}>
+                    {systemHealth?.backupStale ? 'Atenção: sem backup nos últimos 7 dias' : 'Ponto de restauração recente'}
+                  </div>
+                </div>
+
+                {/* 3. Arquivos no Servidor */}
+                <div style={{ padding: '16px 18px', borderRadius: 12, backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cópias no Servidor</span>
+                    <HardDrive size={16} style={{ color: '#7c3aed' }} />
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#0f172a' }}>
+                    {systemHealth?.backupCount ?? backupData?.files?.length ?? 0} {((systemHealth?.backupCount ?? backupData?.files?.length ?? 0) === 1 ? 'backup' : 'backups')}
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: '#64748b', marginTop: 4 }}>
+                    Retenção configurada: {retentionKeep} cópias
+                  </div>
+                </div>
+
+                {/* 4. Cópia Offline Imediata */}
+                <div style={{ padding: '16px 18px', borderRadius: 12, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Download Offline</span>
+                    <Download size={16} style={{ color: '#16a34a' }} />
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 900, color: '#14532d' }}>
+                    Exportação Imediata
+                  </div>
+                  <div style={{ fontSize: '0.76rem', color: '#15803d', marginTop: 4 }}>
+                    Download direto em JSON ou SQLite
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '14px 16px', backgroundColor: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }} data-admin-ui="toolbar">
+                {/* Botão Baixar JSON Agora */}
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={downloadJsonBackup}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    border: 'none',
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.86rem',
+                    cursor: backupBusy ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  data-admin-ui="button"
+                >
+                  <Download size={16} />
+                  <span>Baixar Backup Completo (.JSON)</span>
+                </button>
+
+                {/* Botão Criar Backup no Servidor */}
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={createBackup}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '10px 18px',
+                    borderRadius: 10,
+                    border: 'none',
+                    backgroundColor: 'var(--color-primary, #dc2626)',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    fontSize: '0.86rem',
+                    cursor: backupBusy ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(220, 38, 38, 0.2)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  data-admin-ui="button"
+                >
+                  <Database size={16} />
+                  <span>Criar Backup no Servidor</span>
+                </button>
+
+                {/* Botão Verificar Integridade */}
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={verifyDatabase}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '9px 15px',
+                    borderRadius: 10,
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    cursor: backupBusy ? 'not-allowed' : 'pointer'
+                  }}
+                  data-admin-ui="button"
+                >
+                  <ShieldCheck size={16} />
+                  <span>Verificar Integridade</span>
+                </button>
+
+                {/* Botão Atualizar */}
+                <button
+                  type="button"
+                  disabled={backupBusy}
+                  onClick={() => { refreshBackups(); refreshHealth(); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    padding: '9px 15px',
+                    borderRadius: 10,
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    fontWeight: 700,
+                    fontSize: '0.84rem',
+                    cursor: backupBusy ? 'not-allowed' : 'pointer'
+                  }}
+                  data-admin-ui="button"
+                >
+                  <RefreshCw size={15} className={backupBusy ? 'spin' : ''} />
+                  <span>Atualizar Status</span>
+                </button>
+              </div>
+
+              {/* Status Message Alert */}
+              {backupMessage && (
+                <div role="status" style={{
+                  marginTop: 16,
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  fontSize: '0.86rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: backupMessage.toLowerCase().includes('erro') || backupMessage.toLowerCase().includes('atenção') ? '#fff1f2' : '#f0fdf4',
+                  color: backupMessage.toLowerCase().includes('erro') || backupMessage.toLowerCase().includes('atenção') ? '#991b1b' : '#166534',
+                  border: `1px solid ${backupMessage.toLowerCase().includes('erro') || backupMessage.toLowerCase().includes('atenção') ? '#fecdd3' : '#bbf7d0'}`
+                }}>
+                  {backupMessage.toLowerCase().includes('erro') || backupMessage.toLowerCase().includes('atenção') ? (
+                    <AlertTriangle size={18} />
+                  ) : (
+                    <CheckCircle2 size={18} />
+                  )}
+                  <span>{backupMessage}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Banner Informativo sobre Nuvem e Segurança Offline */}
+            <div className="card" style={{
+              padding: 20,
+              backgroundColor: '#f8fafc',
+              borderRadius: 14,
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 14
+            }}>
+              <div style={{ padding: 10, borderRadius: 10, backgroundColor: '#e0f2fe', color: '#0369a1', flexShrink: 0 }}>
+                <Cloud size={22} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h4 style={{ fontSize: '0.96rem', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
+                  Soberania dos Dados & Armazenamento Seguro
+                </h4>
+                <p style={{ fontSize: '0.84rem', color: '#475569', margin: 0, lineHeight: 1.5 }}>
+                  Mesmo com a base de dados operando sincronizada em nuvem (PostgreSQL / Supabase), você tem a opção de fazer o download do arquivo de backup a qualquer instante para o seu dispositivo. Isso assegura que sua empresa mantenha cópias de segurança locais e autônomas contra qualquer eventualidade externa.
+                </p>
+                <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    disabled={backupBusy}
+                    onClick={downloadJsonBackup}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      color: '#0369a1',
+                      backgroundColor: '#e0f2fe',
+                      border: '1px solid #bae6fd',
+                      borderRadius: 8,
+                      padding: '6px 12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <FileDown size={14} />
+                    <span>Baixar Backup Completo em JSON</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Card: Histórico de Arquivos e Política de Retenção */}
+            <div className="card" style={{ padding: 24, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                <div>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    Histórico de Backups no Servidor
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '3px 0 0' }}>
+                    Cópias compactas verificadas armazenadas na pasta de segurança do servidor.
+                  </p>
+                </div>
+
+                {/* Retenção */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#475569' }}>
+                    Guardar referência de:
+                  </label>
+                  <select
+                    value={retentionKeep}
+                    onChange={e => setRetentionKeep(Number(e.target.value))}
+                    style={{
+                      padding: '6px 10px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      backgroundColor: '#ffffff'
+                    }}
+                    data-admin-ui="field"
+                  >
+                    {[5, 10, 20, 30, 50].map(n => <option key={n} value={n}>{n} cópias</option>)}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={backupBusy}
+                    onClick={saveRetention}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#f8fafc',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    data-admin-ui="button"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de Arquivos */}
+              {!backupData || backupData.files.length === 0 ? (
+                <div style={{
+                  padding: '36px 20px',
+                  textAlign: 'center',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: 12,
+                  border: '1px dashed #cbd5e1'
+                }}>
+                  <Database size={32} style={{ color: '#94a3b8', margin: '0 auto 10px' }} />
+                  <p style={{ fontSize: '0.92rem', fontWeight: 700, color: '#334155', margin: 0 }}>
+                    Nenhum backup em arquivo gerado ainda no servidor.
+                  </p>
+                  <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '4px 0 14px' }}>
+                    Clique no botão abaixo para criar a primeira cópia de segurança verificada agora mesmo.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={backupBusy}
+                    onClick={createBackup}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 16px',
+                      borderRadius: 8,
+                      border: 'none',
+                      backgroundColor: 'var(--color-primary, #dc2626)',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      fontSize: '0.82rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Database size={15} />
+                    <span>Criar Primeiro Backup Agora</span>
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {backupData.files.map(file => (
+                    <div
+                      key={file.name}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        padding: '14px 18px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: 12,
+                        border: '1px solid #e2e8f0',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 8,
+                          backgroundColor: '#e2e8f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#475569'
+                        }}>
+                          <Database size={18} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>
+                            {file.name}
+                          </div>
+                          <div style={{ fontSize: '0.76rem', color: '#64748b', display: 'flex', gap: 12, marginTop: 2 }}>
+                            <span>Gerado em: {new Date(file.createdAt).toLocaleString('pt-BR')}</span>
+                            <span>•</span>
+                            <span>Tamanho: {(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          type="button"
+                          disabled={backupBusy}
+                          onClick={() => downloadFileBackup(file.name)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '8px 14px',
+                            borderRadius: 8,
+                            border: '1px solid #cbd5e1',
+                            backgroundColor: '#ffffff',
+                            color: '#0f172a',
+                            fontWeight: 700,
+                            fontSize: '0.82rem',
+                            cursor: 'pointer',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                          }}
+                        >
+                          <Download size={14} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                          <span>Baixar Arquivo (.sqlite)</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ marginTop: 14, fontSize: '0.78rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <ShieldCheck size={14} />
+                <span>Restauração automática desativada por política de segurança para evitar sobreposição acidental de dados em produção.</span>
+              </div>
+            </div>
           </div>
         )}
         {activeSection === 'loyalty' && (

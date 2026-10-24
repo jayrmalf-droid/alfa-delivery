@@ -81,6 +81,9 @@ export class DatabaseAdapter {
             }
           }
           if (client) {
+            this.pgPool.on('error', err => {
+              console.warn('Alerta do pool PostgreSQL (cliente ocioso desconectado):', err.message);
+            });
             console.log(`PostgreSQL conectado com sucesso via ${currentUrl.replace(/:[^:@]+@/, ':****@')}`);
             break;
           }

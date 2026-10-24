@@ -16,4 +16,4 @@ services:
       - key: ADMIN_EMAIL
         value: jayrm@gmail.com
       - key: ADMIN_PASSWORD_HASH
-        value: 209127457e356a8efa1f35bb20b55301:f469beebd41a5d53f6a0c80f6c8acca4382fcca849eb41a1e5b8f55653cace0dffd6f2f31c59babde8dfc113cfcc8ec22f11f89657cf38702c0301b15ea670ac
+        value: 4d4554b15b96ba10b4e1aed3169c71f7:c47c1685dc98c364ff867f30143ad2a27830ba68a0c103f46ecf5673cee0ae9b83a98b1dc2dcb1e3f3461b7d12aef1d908cbabfc229d0151dfdcf2dc0b0d49f2

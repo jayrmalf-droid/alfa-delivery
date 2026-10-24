@@ -16,6 +16,7 @@ import {
   generatePalette
 } from '../../utils/theme';
 import { printThermalReceipt } from '../../utils/printThermalReceipt';
+import { formatCnpj } from '../../utils/formatters';
 import {
   Save,
   CheckCircle,
@@ -612,118 +613,330 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {/* TAB 1: GERAL & EMPRESA */}
         {/* ========================================================================= */}
         {activeSection === 'general' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Identificação Principal */}
-            <div className="card" style={{ padding: 22, backgroundColor: '#ffffff', borderRadius: 14, border: '1px solid #e2e8f0' }} data-admin-ui="panel">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <Store size={18} style={{ color: 'var(--color-primary-dark, #dc2626)' }} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                  Identificação do Estabelecimento
-                </h3>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }} data-admin-ui="grid">
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                    Nome do Estabelecimento *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.business_name}
-                    onChange={(e) => handleChange('business_name', e.target.value)}
-                    className="form-input"
-                   data-admin-ui="field"/>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Identificação Principal Remodelada */}
+            <div className="card" style={{ padding: 24, backgroundColor: '#ffffff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }} data-admin-ui="panel">
+              {/* Header do Card com Status Dinâmico */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <Building2 size={24} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a', margin: 0, letterSpacing: '-0.01em' }}>
+                      Identificação do Estabelecimento
+                    </h3>
+                    <p style={{ fontSize: '0.84rem', color: '#64748b', margin: '3px 0 0' }}>
+                      Dados cadastrais, CNPJ, canais de pedidos e controle operacional de atendimento.
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                    Slogan / Descrição
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.business_description}
-                    onChange={(e) => handleChange('business_description', e.target.value)}
-                    className="form-input"
-                   data-admin-ui="field"/>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                    WhatsApp para Pedidos *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="(77) 99194-7697"
-                    value={formData.whatsapp}
-                    onChange={(e) => handleChange('whatsapp', e.target.value)}
-                    className="form-input"
-                   data-admin-ui="field"/>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
-                    Status da Loja (Override)
-                  </label>
-                  <select
-                    value={formData.is_open_override === null ? 'schedule' : formData.is_open_override ? 'open' : 'closed'}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      handleChange('is_open_override', val === 'schedule' ? null : val === 'open');
-                    }}
-                    className="form-input"
-                    style={{ background: '#fff', cursor: 'pointer' }}
-                   data-admin-ui="field">
-                    <option value="schedule">🕒 Seguir Horário Semanal Automático</option>
-                    <option value="open">🟢 Forçar ABERTO Agora</option>
-                    <option value="closed">🔴 Forçar FECHADO Agora</option>
-                  </select>
+                {/* Badge de Status em Tempo Real */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 14px',
+                    borderRadius: 20,
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    backgroundColor: formData.is_paused ? '#fef2f2' : formData.is_open_override === false ? '#fff1f2' : formData.is_open_override === true ? '#ecfdf5' : '#eff6ff',
+                    color: formData.is_paused ? '#b91c1c' : formData.is_open_override === false ? '#be123c' : formData.is_open_override === true ? '#047857' : '#1d4ed8',
+                    border: `1px solid ${formData.is_paused ? '#fecaca' : formData.is_open_override === false ? '#fecdd3' : formData.is_open_override === true ? '#a7f3d0' : '#bfdbfe'}`
+                  }}>
+                    {formData.is_paused ? (
+                      <>
+                        <PauseCircle size={14} />
+                        <span>Cozinha Pausada (Temporário)</span>
+                      </>
+                    ) : formData.is_open_override === false ? (
+                      <>
+                        <AlertCircle size={14} />
+                        <span>Loja Fechada Manualmente</span>
+                      </>
+                    ) : formData.is_open_override === true ? (
+                      <>
+                        <CheckCircle size={14} />
+                        <span>Loja Aberta (Forçado)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock size={14} />
+                        <span>Horário Semanal Automático</span>
+                      </>
+                    )}
+                  </span>
                 </div>
               </div>
 
-              {/* Pausa Temporária de Pedidos */}
-              <div style={{
-                marginTop: 16,
-                padding: 16,
-                backgroundColor: formData.is_paused ? '#fef2f2' : '#f8fafc',
-                border: formData.is_paused ? '1.5px solid #fecaca' : '1px solid #e2e8f0',
-                borderRadius: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: 12
-              }} data-admin-ui="toolbar">
-                <div style={{ maxWidth: 600 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {formData.is_paused ? <PauseCircle size={18} color="#dc2626" /> : <PlayCircle size={18} color="#16a34a" />}
-                    <span style={{ fontWeight: 800, fontSize: '0.92rem', color: formData.is_paused ? '#b91c1c' : '#0f172a' }}>
-                      Pausar Recebimento de Novos Pedidos
+              {/* Seção 1: Identidade Comercial & Fiscal */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  fontSize: '0.76rem',
+                  fontWeight: 800,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  marginBottom: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}>
+                  <Store size={14} style={{ color: '#dc2626' }} />
+                  <span>Dados Comerciais & Fiscais</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }} data-admin-ui="grid">
+                  {/* Nome da Loja */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Nome do Estabelecimento *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: ALFA SALGADOS"
+                      value={formData.business_name}
+                      onChange={(e) => handleChange('business_name', e.target.value)}
+                      className="form-input"
+                      style={{ fontSize: '0.92rem', fontWeight: 600 }}
+                      data-admin-ui="field"
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3, display: 'block' }}>
+                      Nome principal exibido no cardápio, aba do navegador e pedidos.
                     </span>
                   </div>
-                  <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '3px 0 0' }}>
-                    Bloqueia temporariamente novos pedidos no checkout com banner informativo aos clientes (ideal em picos de demanda na cozinha).
-                  </p>
+
+                  {/* CNPJ da Empresa (NOVO CAMPO) */}
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <FileText size={14} style={{ color: '#0284c7' }} />
+                        <span>CNPJ da Empresa</span>
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>Opcional / Fiscal</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="00.000.000/0000-00"
+                      maxLength={18}
+                      value={formData.cnpj || ''}
+                      onChange={(e) => handleChange('cnpj', formatCnpj(e.target.value))}
+                      className="form-input"
+                      style={{ fontSize: '0.92rem', fontFamily: 'monospace' }}
+                      data-admin-ui="field"
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3, display: 'block' }}>
+                      Impresso no cabeçalho das comandas térmicas e rodapé da loja.
+                    </span>
+                  </div>
+
+                  {/* Slogan */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Slogan / Descrição
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Os melhores sabores se faz com carinho"
+                      value={formData.business_description}
+                      onChange={(e) => handleChange('business_description', e.target.value)}
+                      className="form-input"
+                      style={{ fontSize: '0.92rem' }}
+                      data-admin-ui="field"
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3, display: 'block' }}>
+                      Subtítulo exibido abaixo do logotipo no cardápio digital.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 2: Canais de Comunicação & Atendimento */}
+              <div style={{ marginBottom: 20, paddingTop: 16, borderTop: '1px solid #f1f5f9' }}>
+                <div style={{
+                  fontSize: '0.76rem',
+                  fontWeight: 800,
+                  color: '#64748b',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  marginBottom: 10,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}>
+                  <Phone size={14} style={{ color: '#16a34a' }} />
+                  <span>Canais de Atendimento & Pedidos</span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleChange('is_paused', !formData.is_paused)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 9,
-                    fontWeight: 800,
-                    fontSize: '0.82rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                    backgroundColor: formData.is_paused ? '#dc2626' : '#e2e8f0',
-                    color: formData.is_paused ? '#ffffff' : '#334155',
-                    transition: 'all 0.15s ease'
-                  }}
-                 data-admin-ui="button">
-                  {formData.is_paused ? 'Reativar Pedidos' : 'Pausar Loja Agora'}
-                </button>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }} data-admin-ui="grid">
+                  {/* WhatsApp de Pedidos */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      WhatsApp para Pedidos *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="(77) 99194-7697"
+                      value={formData.whatsapp}
+                      onChange={(e) => handleChange('whatsapp', e.target.value)}
+                      className="form-input"
+                      style={{ fontSize: '0.92rem', fontWeight: 600 }}
+                      data-admin-ui="field"
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3, display: 'block' }}>
+                      Número oficial que recebe a finalização dos pedidos dos clientes.
+                    </span>
+                  </div>
+
+                  {/* Telefone Fixo / Adicional */}
+                  <div>
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      <span>Telefone Fixo / Suporte (Opcional)</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>Opcional</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="(77) 3422-0000"
+                      value={formData.phone || ''}
+                      onChange={(e) => handleChange('phone', e.target.value)}
+                      className="form-input"
+                      style={{ fontSize: '0.92rem' }}
+                      data-admin-ui="field"
+                    />
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3, display: 'block' }}>
+                      Telefone alternativo exibido na comanda e nas informações da loja.
+                    </span>
+                  </div>
+
+                  {/* Status da Loja Override */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
+                      Status da Loja (Override Operacional)
+                    </label>
+                    <select
+                      value={formData.is_open_override === null ? 'schedule' : formData.is_open_override ? 'open' : 'closed'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleChange('is_open_override', val === 'schedule' ? null : val === 'open');
+                      }}
+                      className="form-input"
+                      style={{ background: '#fff', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 600 }}
+                      data-admin-ui="field"
+                    >
+                      <option value="schedule">🕒 Seguir Horário Semanal Automático (Recomendado)</option>
+                      <option value="open">🟢 Forçar ABERTO Agora (Ignora horário)</option>
+                      <option value="closed">🔴 Forçar FECHADO Agora (Pausa total)</option>
+                    </select>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 3, display: 'block' }}>
+                      Permite abrir ou fechar o cardápio manualmente fora dos horários habituais.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 3: Pausa Emergencial de Novos Pedidos (Cozinha Cheia) */}
+              <div style={{
+                padding: '16px 18px',
+                backgroundColor: formData.is_paused ? '#fef2f2' : '#f8fafc',
+                border: formData.is_paused ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
+                borderRadius: 12,
+                transition: 'all 0.2s ease'
+              }} data-admin-ui="panel">
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 14
+                }} data-admin-ui="toolbar">
+                  <div style={{ maxWidth: 640 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {formData.is_paused ? (
+                        <div style={{ padding: 6, borderRadius: 8, backgroundColor: '#fee2e2', color: '#dc2626' }}>
+                          <PauseCircle size={20} />
+                        </div>
+                      ) : (
+                        <div style={{ padding: 6, borderRadius: 8, backgroundColor: '#dcfce7', color: '#16a34a' }}>
+                          <PlayCircle size={20} />
+                        </div>
+                      )}
+                      <div>
+                        <span style={{ fontWeight: 800, fontSize: '0.94rem', color: formData.is_paused ? '#b91c1c' : '#0f172a' }}>
+                          {formData.is_paused ? 'Recepção de Pedidos Temporariamente Pausada' : 'Pausar Recebimento de Novos Pedidos (Cozinha Cheia)'}
+                        </span>
+                        <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '2px 0 0' }}>
+                          {formData.is_paused
+                            ? 'O cardápio está avisando aos clientes que a cozinha está temporariamente lotada. Novos pedidos estão bloqueados no checkout.'
+                            : 'Bloqueia temporariamente novos pedidos no checkout com banner informativo aos clientes (ideal em picos de demanda na cozinha).'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleChange('is_paused', !formData.is_paused)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '10px 18px',
+                      borderRadius: 10,
+                      fontWeight: 800,
+                      fontSize: '0.84rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      backgroundColor: formData.is_paused ? '#dc2626' : '#0f172a',
+                      color: '#ffffff',
+                      boxShadow: formData.is_paused ? '0 2px 8px rgba(220, 38, 38, 0.25)' : '0 2px 6px rgba(15, 23, 42, 0.15)',
+                      transition: 'all 0.15s ease'
+                    }}
+                    data-admin-ui="button"
+                  >
+                    {formData.is_paused ? (
+                      <>
+                        <PlayCircle size={16} />
+                        <span>Reativar Recebimento de Pedidos</span>
+                      </>
+                    ) : (
+                      <>
+                        <PauseCircle size={16} />
+                        <span>Pausar Loja Agora</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {formData.is_paused && (
+                  <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed #fecaca' }}>
+                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#991b1b', marginBottom: 4 }}>
+                      Mensagem de Aviso Exibida aos Clientes no Checkout:
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.pause_message || ''}
+                      placeholder="Estamos temporariamente sem receber pedidos."
+                      onChange={(e) => handleChange('pause_message', e.target.value)}
+                      className="form-input"
+                      style={{ fontSize: '0.84rem', borderColor: '#fca5a5', backgroundColor: '#fff' }}
+                      data-admin-ui="field"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -764,7 +977,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 2fr', gap: 12 }} data-admin-ui="grid">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }} data-admin-ui="grid">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#334155', marginBottom: 5 }}>
                     Rua / Logradouro

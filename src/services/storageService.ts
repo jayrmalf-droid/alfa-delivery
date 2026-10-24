@@ -58,6 +58,7 @@ export const StorageService = {
     return {
       ...({} as StoreSettings),
       ...stored,
+      cnpj: stored.cnpj || '',
       printer_paper_width: stored.printer_paper_width || '80mm',
       printer_include_logo: stored.printer_include_logo ?? true,
       printer_logo_url: stored.printer_logo_url || stored.logo_url || '',

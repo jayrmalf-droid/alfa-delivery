@@ -146,7 +146,7 @@ export const App: React.FC = () => {
 
   // Client App State with Cart Persistence (Section 8)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [clientCatalogSort, setClientCatalogSort] = useState<CatalogSort>('recommended');
+  const [clientCatalogSort] = useState<CatalogSort>('recommended');
   const [filterOnlyPromos, setFilterOnlyPromos] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const [catalogViewMode, setCatalogViewMode] = useState<'grid' | 'list'>(() => {
@@ -810,7 +810,6 @@ export const App: React.FC = () => {
           }}
         />
 
-        <div className="catalog-sort-tools"><label htmlFor="client-catalog-sort">Ordenar cardápio<select aria-label="Ordenar cardápio" id="client-catalog-sort" value={clientCatalogSort} onChange={e=>setClientCatalogSort(e.target.value as CatalogSort)}><option value="recommended">Ordem original</option><option value="name">Nome (A–Z)</option><option value="priceAsc">Menor preço base</option><option value="priceDesc">Maior preço base</option></select></label><p>Ordenação pelo preço exibido, incluindo promoções. Adicionais podem aumentar o total.</p>{clientCatalogSort!=='recommended'&&<button type="button" onClick={()=>setClientCatalogSort('recommended')}>Restaurar ordem original</button>}</div>
         <div className="catalog-result-summary" role="status" aria-live="polite"><span>{displayProducts.length} {displayProducts.length === 1 ? 'opção no cardápio' : 'opções no cardápio'}</span><small>Toque em um produto para ver os detalhes</small></div>
 
         {(clientSearchTerm.trim()||selectedCategoryId!==null||filterOnlyPromos)&&<div className="catalog-filter-summary" role="group" aria-label="Filtros ativos do cardápio">

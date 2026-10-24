@@ -1,21 +1,17 @@
 import React, { useState } from 'react';
-import type { StoreSettings, Product, PromoBanner } from '../../types';
+import type { StoreSettings, Product } from '../../types';
 import { StorageService } from '../../services/storageService';
-import { normalizePhone, productPrice } from '../../domain/rules';
+import { productPrice } from '../../domain/rules';
 import { formatCurrency } from '../../utils/formatters';
 import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  MessageCircle,
-  CreditCard,
   Package,
   Flame,
-  Bike,
   Tag,
   Percent,
-  Sparkles,
-  ShoppingCart
+  Sparkles
 } from 'lucide-react';
 
 interface Props {
@@ -26,17 +22,7 @@ interface Props {
   onSelectPromos?: () => void;
 }
 
-const externalLink = (value?: string) => {
-  try {
-    const url = new URL(value || '');
-    return ['https:', 'http:'].includes(url.protocol) ? url.href : null;
-  } catch {
-    return null;
-  }
-};
-
 export const HeroSection: React.FC<Props> = ({
-  settings,
   onScrollToMenu,
   onSelectCategory,
   onSelectProduct,
@@ -69,36 +55,7 @@ export const HeroSection: React.FC<Props> = ({
 
   const title = index === 0 ? 'Seu momento fica muito melhor com Alfa Sabores VCA' : banner?.title || 'Seu momento fica muito melhor com Alfa Sabores VCA';
   const subtitle = index === 0 ? 'Coxinhas douradas, bolinhas de queijo e quibes crocantes fritos na hora com muito carinho' : banner?.subtitle || 'Coxinhas douradas, bolinhas de queijo e quibes crocantes fritos na hora com muito carinho';
-  const whatsapp = `https://wa.me/${normalizePhone(settings.whatsapp)}?text=${encodeURIComponent(
-    'Olá! Gostaria de encomendar salgados.'
-  )}`;
 
-  const actionFor = (item?: PromoBanner) => {
-    if (item?.link_type === 'product') {
-      const product = products.find(
-        p =>
-          p.id === item.link_value &&
-          p.available &&
-          !p.is_archived &&
-          categories.some(c => c.id === p.category_id && c.is_available) &&
-          (!p.has_stock_control || p.stock_quantity > 0)
-      );
-      if (product) return { label: 'Ver produto', run: () => onSelectProduct?.(product) };
-    }
-    if (item?.link_type === 'category') {
-      const target =
-        categories.find(
-          c =>
-            c.is_available &&
-            (c.id === item.link_value || c.name.toLowerCase() === item.link_value?.toLowerCase())
-        ) || (/combo|cento/i.test(item.link_value || '') ? category : undefined);
-      if (target) return { label: 'Ver cardápio', run: () => onSelectCategory?.(target.id) };
-    }
-    return { label: 'Ver cardápio', run: onScrollToMenu };
-  };
-
-  const action = actionFor(banner);
-  const link = banner?.link_type === 'external' ? externalLink(banner.link_value) : null;
   const change = (direction: number) =>
     setSelectedId(banners[(index + direction + banners.length) % banners.length].id);
 
@@ -190,37 +147,8 @@ export const HeroSection: React.FC<Props> = ({
               </h1>
               <p>{subtitle}</p>
             </div>
-
-            <div className="campaign-actions">
-              {link ? (
-                <a className="campaign-primary" href={link} target="_blank" rel="noopener noreferrer">
-                  <ShoppingCart size={18} />
-                  <span>{action.label}</span>
-                  <ArrowRight size={16} />
-                </a>
-              ) : (
-                <button className="campaign-primary" onClick={action.run}>
-                  <ShoppingCart size={18} />
-                  <span>{action.label}</span>
-                  <ArrowRight size={16} />
-                </button>
-              )}
-              <a className="campaign-contact" href={whatsapp} target="_blank" rel="noopener noreferrer">
-                <MessageCircle size={18} className="whatsapp-green-icon" />
-                <span>Encomendar pelo WhatsApp</span>
-              </a>
-            </div>
-
-            <div className="campaign-notes-row">
-              <span className="campaign-note">
-                <Bike size={15} /> Entrega e retirada
-              </span>
-              <span className="campaign-note-divider">|</span>
-              <span className="campaign-note">
-                <CreditCard size={15} /> Pix, cartão ou dinheiro
-              </span>
-            </div>
           </div>
+
 
           <div className="campaign-visual">
             <picture key={banner?.id || 'default'}>

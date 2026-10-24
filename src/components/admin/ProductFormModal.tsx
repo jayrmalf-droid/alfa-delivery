@@ -4,7 +4,7 @@ import { Feedback, useFeedback } from '../common/Feedback';
 import React, { useEffect, useState } from 'react';
 import type { Product, Category, ProductOptionGroup, ProductOption } from '../../types';
 import { StorageService } from '../../services/storageService';
-import { catalogVersions, saveProductBundle } from '../../services/api';
+import { catalogVersions, saveProductBundle, request } from '../../services/api';
 import { validateProductBundle, type ProductBundle } from '../../domain/catalog';
 import { useDialog } from '../../utils/useDialog';
 import { ProductCard } from '../client/ProductCard';
@@ -73,8 +73,8 @@ export const ProductFormModal:React.FC<Props>=({isOpen,editingProduct,categories
    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*ratio));canvas.height=Math.max(1,Math.round(bitmap.height*ratio));const context=canvas.getContext('2d');if(!context)throw Error('O navegador não conseguiu preparar a imagem.');context.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
    let image=canvas.toDataURL('image/webp',.82);if(image.length>900000)image=canvas.toDataURL('image/webp',.65);
    try {
-     const res=await fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:(file.name||'foto').replace(/\.[^.]+$/,'')+'.webp',data:image})});
-     if(res.ok){const json=await res.json();if(json.url){change({image:json.url});return;}}
+     const json = await request('/upload', { method: 'POST', body: JSON.stringify({ filename: (file.name || 'foto').replace(/\.[^.]+$/, '') + '.webp', data: image }) }).catch(() => null);
+     if (json && json.url) { change({ image: json.url }); return; }
    } catch { /* fallback */ }
    if(image.length>1000000)throw Error('A imagem ainda está grande. Use uma foto menor ou um endereço de imagem.');change({image});
   }catch(e){setError(e instanceof Error?e.message:'Não foi possível preparar a foto.');}finally{setImageBusy(false);}

@@ -53,8 +53,14 @@ async function session(req) {
   // 1. Suporte a cookie alfa_session e __session (exigido pelo Firebase Hosting)
   const cookies = (req.headers.cookie || '').split(';').map(x => x.trim());
   const sessionCookie = cookies.find(x => x.startsWith('__session=')) || cookies.find(x => x.startsWith('alfa_session='));
-  if (sessionCookie) {
-    const tokenVal = sessionCookie.split('=')[1];
+  let tokenVal = sessionCookie ? sessionCookie.split('=')[1] : null;
+
+  // 2. Suporte a Authorization: Bearer <token> (apenas tokens autenticados e persistidos no banco)
+  if (!tokenVal && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+    tokenVal = req.headers.authorization.slice(7).trim();
+  }
+
+  if (tokenVal) {
     const row = await db.getSession(hash(tokenVal));
     if (row && row.expires > Date.now()) return true;
   }
@@ -479,8 +485,17 @@ const server = http.createServer(async (req, res) => {
         const originProto = req.headers['x-forwarded-proto'] || (production ? 'https' : 'http');
         const currentOrigin = `${originProto}://${originHost}`;
         const allowed = (publicUrl && publicUrl.startsWith('http')) ? new URL(publicUrl).origin : currentOrigin;
-        if (req.headers.origin && req.headers.origin !== allowed && req.headers.origin !== currentOrigin) fail('Origem não autorizada.', 403);
-        if (req.headers['sec-fetch-site'] === 'cross-site') fail('Requisição não autorizada.', 403);
+        const reqOrigin = req.headers.origin;
+        const isTrustedOrigin = reqOrigin && (
+          reqOrigin === allowed ||
+          reqOrigin === currentOrigin ||
+          reqOrigin.endsWith('.web.app') ||
+          reqOrigin.endsWith('.firebaseapp.com') ||
+          reqOrigin.includes('localhost') ||
+          reqOrigin.includes('127.0.0.1')
+        );
+        if (reqOrigin && !isTrustedOrigin) fail('Origem não autorizada.', 403);
+        if (req.headers['sec-fetch-site'] === 'cross-site' && !isTrustedOrigin) fail('Requisição não autorizada.', 403);
       }
       const isAdmin = await session(req);
       if (req.method === 'GET' && url.pathname === '/api/events') {
@@ -590,8 +605,8 @@ const server = http.createServer(async (req, res) => {
         await db.insertSession(hash(token), Date.now() + 8 * 3600000);
 
         // Sets both alfa_session and __session (for Firebase Hosting rewrite compatibility)
-        const cookieOpts = `HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${production ? '; Secure' : ''}`;
-        return send(res, 200, { ok: true }, {
+        const cookieOpts = `HttpOnly; SameSite=${production ? 'None; Secure' : 'Lax'}; Path=/; Max-Age=28800`;
+        return send(res, 200, { ok: true, token }, {
           'Set-Cookie': [
             `alfa_session=${token}; ${cookieOpts}`,
             `__session=${token}; ${cookieOpts}`
@@ -649,7 +664,8 @@ const server = http.createServer(async (req, res) => {
         const targetPath = path.join(uploadsDir, fileId);
         fs.writeFileSync(targetPath, buffer);
         await audit('image_uploaded', fileId);
-        return send(res, 200, { url: `/uploads/${fileId}`, filename: fileId, size: buffer.length });
+        const imagePrefix = (publicUrl && publicUrl.startsWith('http')) ? publicUrl.replace(/\/$/, '') : '';
+        return send(res, 200, { url: `${imagePrefix}/uploads/${fileId}`, filename: fileId, size: buffer.length });
       }
 
       // Movimentações de estoque: transação única para quantidade, histórico e auditoria.

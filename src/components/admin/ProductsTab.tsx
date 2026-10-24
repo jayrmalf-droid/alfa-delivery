@@ -17,6 +17,7 @@ import {
   Sparkles,
   Printer
 } from 'lucide-react';
+import { request } from '../../services/api';
 import { ProductFormModal } from './ProductFormModal';
 import { ProductPrintModal } from './ProductPrintModal';
 
@@ -48,9 +49,10 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ products, categories }
   const trackedProducts = products.filter(p => !p.is_archived && p.has_stock_control);
   const lowProducts = trackedProducts.filter(p => p.stock_quantity <= lowLimit);
   const loadStockHistory = async () => {
-    try { const response = await fetch('/api/stock', { credentials: 'same-origin' });
-      if (!response.ok) throw new Error('Não foi possível carregar o histórico.');
-      const result = await response.json(); setStockHistory(result.movements || []); setStockError('');
+    try {
+      const result = await request('/stock');
+      setStockHistory(result.movements || []);
+      setStockError('');
     } catch (error) { setStockError(error instanceof Error ? error.message : 'Falha ao carregar histórico.'); }
   };
   const registerStock = async () => {
@@ -58,8 +60,7 @@ export const ProductsTab: React.FC<ProductsTabProps> = ({ products, categories }
     if (!stockProduct || !/^\d+$/.test(stockAmount) || !Number.isSafeInteger(quantity) || (stockType === 'entry' && quantity === 0)) { setStockError('Selecione um produto e informe uma quantidade inteira válida.'); return; }
     setStockBusy(true); setStockError('');
     try {
-      const response = await fetch('/api/stock', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body: JSON.stringify({product_id:stockProduct,type:stockType,quantity,note:stockNote}) });
-      const result = await response.json(); if (!response.ok) throw new Error(result.error || result.message || 'Não foi possível salvar a movimentação.');
+      await request('/stock', { method: 'POST', body: JSON.stringify({product_id:stockProduct,type:stockType,quantity,note:stockNote}) });
       window.location.reload();
     } catch (error) { setStockError(error instanceof Error ? error.message : 'Falha ao registrar movimentação.'); setStockBusy(false); }
   };

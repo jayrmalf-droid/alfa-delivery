@@ -4,6 +4,7 @@ import { useConfirmedSave } from '../../utils/useConfirmedSave';
 import React, { useState, useRef, useEffect } from 'react';
 import { PromoBanner, Category, Product } from '../../types';
 import { StorageService } from '../../services/storageService';
+import { request } from '../../services/api';
 import {
   Plus,
   Edit2,
@@ -156,15 +157,11 @@ export const BannersTab: React.FC = () => {
       try {
         const cleanName = (file.name || 'banner').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
         const filename = `${cleanName}-${target}.webp`;
-        const res = await fetch('/api/upload', {
+        const json = await request('/upload', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filename, data: dataUrl })
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.url) finalUrl = json.url;
-        }
+        }).catch(() => null);
+        if (json && json.url) finalUrl = json.url;
       } catch {
         // Fallback transparent to local dataUrl
       }

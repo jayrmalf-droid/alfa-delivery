@@ -11,8 +11,36 @@ const callbacks = new Set<() => void>();
 export const onApiChange = (fn: () => void) => { callbacks.add(fn); return () => { callbacks.delete(fn); }; };
 const emit = () => callbacks.forEach(fn => fn());
 export const apiState = () => ({ admin });
+export function getApiBaseUrl(): string {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    if (host.endsWith('.web.app') || host.endsWith('.firebaseapp.com')) {
+      return 'https://alfa-salgados.onrender.com';
+    }
+  }
+  return '';
+}
 export async function request(path: string, options: RequestInit = {}) {
-  const response = await fetch(`/api${path}`, { ...options, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...options.headers } });
+  const base = getApiBaseUrl();
+  let token: string | null = null;
+  try {
+    token = typeof localStorage !== 'undefined' ? localStorage.getItem('alfa_admin_token') : null;
+  } catch {}
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {})
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const response = await fetch(`${base}/api${path}`, {
+    ...options,
+    credentials: 'include',
+    headers
+  });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Não foi possível conectar com a loja. Tente novamente.');
   return data;
@@ -29,10 +57,25 @@ export async function initialize() {
  try { const tokens=JSON.parse(localStorage.getItem('alfa_tracking')||'{}'); for(const id of Object.keys(tokens).slice(-5)) { const order=await trackedOrder(id).catch(()=>null); if(order)customerOrders[id]=order; } if(!admin){cache.alfa_orders=Object.values(customerOrders);emit();} } catch { /* local preferences are optional */ }
 }
 export async function login(email: string, password: string) {
-  await request('/login', { method: 'POST', body: JSON.stringify({ email, password }) }); await refresh();
+  const res = await request('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+  try {
+    if (res?.token && typeof localStorage !== 'undefined') {
+      localStorage.setItem('alfa_admin_token', res.token);
+    }
+  } catch {}
+  await refresh();
 }
 export async function logout() {
-  await writes; await request('/logout', { method: 'POST', body: '{}' });
+  await writes;
+  try {
+    await request('/logout', { method: 'POST', body: '{}' });
+  } finally {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('alfa_admin_token');
+      }
+    } catch {}
+  }
   for (const key of ['alfa_orders','alfa_customers','alfa_coupons','alfa_sales','alfa_customer_profiles','alfa_expenses','alfa_cash_closures','alfa_sales_goals']) cache[key] = [];
   await refresh();
 }

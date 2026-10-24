@@ -2,6 +2,7 @@ import { useConfirmedSave } from '../../utils/useConfirmedSave';
 import React, { useState, useEffect, useRef } from 'react';
 import { StoreSettings } from '../../types';
 import { StorageService } from '../../services/storageService';
+import { request, getApiBaseUrl } from '../../services/api';
 import {
   applyTheme,
   applyThemeColor,
@@ -86,16 +87,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const [retentionKeep, setRetentionKeep] = useState(10);
   const refreshHealth = async () => {
     try {
-      const r = await fetch('/api/admin/backups/health', { credentials: 'include' });
-      if (!r.ok) throw new Error('Não foi possível consultar a saúde do sistema.');
-      const data = await r.json(); setSystemHealth(data); setRetentionKeep(data.retentionKeep);
+      const data = await request('/admin/backups/health');
+      setSystemHealth(data); setRetentionKeep(data.retentionKeep);
     } catch (e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar sistema'); }
   };
   const saveRetention = async () => {
     setBackupBusy(true); setBackupMessage('');
     try {
-      const r = await fetch('/api/admin/backups/retention', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keep: retentionKeep }) });
-      if (!r.ok) throw new Error('Não foi possível salvar a política de retenção.');
+      await request('/admin/backups/retention', { method: 'POST', body: JSON.stringify({ keep: retentionKeep }) });
       setBackupMessage('Preferência de retenção salva. Nenhum backup foi excluído.'); await refreshHealth();
     } catch (e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao salvar política'); }
     finally { setBackupBusy(false); }
@@ -103,17 +102,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupMessage, setBackupMessage] = useState('');
   const refreshBackups = async () => {
-    try { const r = await fetch('/api/admin/backups', { credentials: 'include' }); if (!r.ok) throw new Error('Acesso indisponível. Faça login como administrador.'); setBackupData(await r.json()); }
+    try { const data = await request('/admin/backups'); setBackupData(data); }
     catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao consultar backups'); }
   };
   const createBackup = async () => {
     setBackupBusy(true); setBackupMessage('');
-    try { const r = await fetch('/api/admin/backups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', credentials: 'include' }); if (!r.ok) throw new Error('Não foi possível criar o backup.'); setBackupMessage('Backup criado e verificado com sucesso.'); await refreshBackups(); await refreshHealth(); }
+    try { await request('/admin/backups', { method: 'POST', body: '{}' }); setBackupMessage('Backup criado e verificado com sucesso.'); await refreshBackups(); await refreshHealth(); }
     catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro ao criar backup'); } finally { setBackupBusy(false); }
   };
   const verifyDatabase = async () => {
     setBackupBusy(true);
-    try { const r = await fetch('/api/admin/backups/integrity', { credentials: 'include' }); if (!r.ok) throw new Error('Não foi possível verificar o banco.'); const data = await r.json(); setBackupMessage(data.ok ? 'Integridade do banco: OK.' : 'ATENÇÃO: verificação de integridade falhou.'); }
+    try { const data = await request('/admin/backups/integrity'); setBackupMessage(data.ok ? 'Integridade do banco: OK.' : 'ATENÇÃO: verificação de integridade falhou.'); }
     catch(e) { setBackupMessage(e instanceof Error ? e.message : 'Erro na verificação'); } finally { setBackupBusy(false); }
   };
   const [auditRows, setAuditRows] = useState<{id:string;at:string;action:string;resource:string}[]>([]);
@@ -130,9 +129,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const refreshAudit = async () => {
     setAuditError('');
     try {
-      const r = await fetch('/api/admin/audit?' + auditQuery(), { credentials: 'include' });
-      if (!r.ok) throw new Error('Não foi possível consultar a auditoria. Verifique seu acesso e os filtros.');
-      const data = await r.json(); setAuditRows(data.rows); setAuditLoaded(true);
+      const data = await request('/admin/audit?' + auditQuery());
+      setAuditRows(data.rows); setAuditLoaded(true);
     } catch(e) { setAuditError(e instanceof Error ? e.message : 'Falha ao consultar registros'); }
   };
   const [playingPreviewId, setPlayingPreviewId] = useState<string | null>(null);
@@ -2237,7 +2235,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               <label>Até <input type="date" value={auditTo} onChange={e => setAuditTo(e.target.value)}  data-admin-ui="field"/></label>
               <label>Ação <input type="text" placeholder="Ex.: order_payment" value={auditAction} onChange={e => setAuditAction(e.target.value)}  data-admin-ui="field"/></label>
               <button type="button" onClick={refreshAudit} data-admin-ui="button">Consultar</button>
-              <a href={'/api/admin/audit.csv?' + auditQuery()} download="auditoria-alfa.csv">Exportar CSV</a>
+              <a href={`${getApiBaseUrl()}/api/admin/audit.csv?` + auditQuery()} download="auditoria-alfa.csv">Exportar CSV</a>
             </div>
             {auditError && <p role="alert" style={{ color: '#b91c1c' }}>{auditError}</p>}
             {auditLoaded && <div style={{ overflowX: 'auto' }} tabIndex={0} role="region" aria-label="Tabela de dados — role para ver todas as colunas" data-admin-ui="table-scroll">
@@ -2282,7 +2280,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               {backupData.files.length === 0 ? <p>Nenhum backup registrado.</p> : backupData.files.map(file => (
                 <div key={file.name} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: 10, borderBottom: '1px solid #e5e7eb' }}>
                   <span>{new Date(file.createdAt).toLocaleString('pt-BR')} — {(file.size / 1024 / 1024).toFixed(2)} MB</span>
-                  <a href={'/api/admin/backups/download/' + encodeURIComponent(file.name)}>Baixar</a>
+                  <a href={`${getApiBaseUrl()}/api/admin/backups/download/` + encodeURIComponent(file.name)}>Baixar</a>
                 </div>
               ))}
             </div>}

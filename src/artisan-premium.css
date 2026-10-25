@@ -94,16 +94,16 @@
 .storefront .catalog-sort-tools p { color:var(--text-muted); }
 .storefront .catalog-result-summary { color:var(--text-muted); padding:6px 0 18px; font-size:12px; }
 .storefront .catalog-main .artisan-section-title { font-family:Georgia,serif; font-size:32px; color:var(--text-main); font-weight:400; letter-spacing:-.8px; margin:0; line-height:1.25; }
-.storefront .catalog-main .product-card { background:var(--bg-card); border-color:var(--border-subtle); border-radius:17px; box-shadow:0 5px 16px #4d351b05; }
-.storefront .catalog-main .product-card:hover { border-color:var(--border-subtle); box-shadow:0 12px 25px #4d351b0c; transform:translateY(-2px); }
-.storefront .catalog-main .product-card .product-content { padding:20px; }
-.storefront .catalog-main .product-card .product-content h3 { font-family:Georgia,serif; font-size:22px; font-weight:400; line-height:1.3; color:var(--text-main); }
+.storefront .catalog-main .product-card { background:var(--bg-card); border-color:var(--border-subtle); border-radius:16px; box-shadow:0 2px 10px rgba(0,0,0,0.04); }
+.storefront .catalog-main .product-card:hover { border-color:#cbd5e1; box-shadow:0 12px 28px rgba(0,0,0,0.08); transform:translateY(-3px); }
+.storefront .catalog-main .product-card .product-content { padding:13px 15px 14px; }
+.storefront .catalog-main .product-card .product-content h3 { font-family:var(--font-sans,"Plus Jakarta Sans",sans-serif); font-size:1.05rem; font-weight:750; line-height:1.25; color:var(--text-main); margin:0; }
 .storefront .catalog-main .product-card .product-content h3 button { font-family:inherit; font-weight:inherit; }
-.storefront .catalog-main .product-card .product-content p { color:var(--text-muted); font-size:13px; line-height:1.65; }
-.storefront .catalog-main .product-card .product-footer { border-top-color:var(--border-subtle); padding-top:17px; }
-.storefront .catalog-main .product-card .product-price strong { color:var(--color-primary); font-size:24px; font-weight:600; }
+.storefront .catalog-main .product-card .product-content p { color:var(--text-muted); font-size:12.5px; line-height:1.4; margin:3px 0 10px; min-height:auto; }
+.storefront .catalog-main .product-card .product-footer { border-top-color:var(--border-subtle); padding-top:10px; }
+.storefront .catalog-main .product-card .product-price strong { color:var(--color-primary); font-size:21px; font-weight:800; }
 .storefront .catalog-main .product-card .product-price small { color:var(--text-muted); }
-.storefront .catalog-main .product-card .product-add { background:var(--color-primary); border:1px solid var(--color-primary); color:var(--bg-card); box-shadow:none; border-radius:9px; min-height:46px; font-weight:600; }
+.storefront .catalog-main .product-card .product-add { background:var(--color-primary); border:1px solid var(--color-primary); color:var(--bg-card); box-shadow:0 2px 8px rgba(220,38,38,0.22); border-radius:10px; min-height:38px; font-weight:700; padding:8px 14px; }
 .storefront .catalog-main .product-card .product-add:hover { background:var(--color-primary-dark); }
 .storefront .catalog-main .product-card.unavailable .product-add { background:#eee6da; border-color:var(--border-subtle); color:var(--text-muted); }
 .storefront .product-combo-badge,.storefront .product-configurable,.storefront .product-highlight-badge { background:#fffbf1ed; color:#785b35; border:1px solid #e0d1b9; box-shadow:none; }

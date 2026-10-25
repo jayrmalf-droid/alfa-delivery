@@ -88,12 +88,13 @@ export const StorageService = {
       footer_show_address_title: stored.footer_show_address_title ?? true,
       footer_show_address: stored.footer_show_address ?? true,
       footer_show_delivery_estimate: stored.footer_show_delivery_estimate ?? true,
+      delivery_time_estimate: stored.delivery_time_estimate || '50 min',
       footer_show_contact_title: stored.footer_show_contact_title ?? true,
       footer_show_whatsapp: stored.footer_show_whatsapp ?? true,
       footer_show_instagram: stored.footer_show_instagram ?? true,
       footer_show_admin_link: stored.footer_show_admin_link ?? true,
       footer_show_copyright: stored.footer_show_copyright ?? true,
-      footer_copyright_text: stored.footer_copyright_text || ''
+      footer_copyright_text: stored.footer_copyright_text || `${stored.business_name || 'Alfa Salgados'} Delivery © ${new Date().getFullYear()} • Plataforma Própria Independente`
     };
   },
   async updateSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {

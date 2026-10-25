@@ -83,13 +83,42 @@ type SettingsSection = 'general' | 'theme' | 'sounds' | 'printer' | 'payments' |
 export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const { saving, saveError, runSave } = useConfirmedSave();
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
-  const [formData, setFormData] = useState<StoreSettings>(settings);
-
-  useEffect(() => {
-    setFormData(settings);
-  }, [settings]);
+  const [formData, setFormData] = useState<StoreSettings>(() => ({
+    ...settings,
+    delivery_time_estimate: settings.delivery_time_estimate || '50 min',
+    footer_copyright_text: settings.footer_copyright_text || `${settings.business_name || 'Alfa Salgados'} Delivery © ${new Date().getFullYear()} • Plataforma Própria Independente`
+  }));
   const [previewScheduledOrder, setPreviewScheduledOrder] = useState(false);
   const [isFooterModalOpen, setIsFooterModalOpen] = useState(false);
+
+  // Proteger formData contra sobrescrita por polling em segundo plano (LiveSync)
+  // enquanto o usuário estiver editando dados ou com o modal aberto.
+  const isDirtyRef = useRef(false);
+  useEffect(() => {
+    isDirtyRef.current = JSON.stringify(formData) !== JSON.stringify(settings);
+  }, [formData, settings]);
+
+  useEffect(() => {
+    if (!isDirtyRef.current && !isFooterModalOpen) {
+      setFormData(prev => {
+        const next = {
+          ...settings,
+          delivery_time_estimate: settings.delivery_time_estimate || prev.delivery_time_estimate || '50 min',
+          footer_copyright_text: settings.footer_copyright_text || prev.footer_copyright_text || `${settings.business_name || 'Alfa Salgados'} Delivery © ${new Date().getFullYear()} • Plataforma Própria Independente`
+        };
+        return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+      });
+    }
+  }, [settings, isFooterModalOpen]);
+
+  const handleOpenFooterModal = () => {
+    setFormData(prev => ({
+      ...prev,
+      footer_copyright_text: prev.footer_copyright_text || `${prev.business_name || 'Alfa Salgados'} Delivery © ${new Date().getFullYear()} • Plataforma Própria Independente`,
+      delivery_time_estimate: prev.delivery_time_estimate || '50 min'
+    }));
+    setIsFooterModalOpen(true);
+  };
 
   const handleToggleAllFooter = (enabled: boolean) => {
     setFormData(prev => ({
@@ -534,7 +563,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
           <button
             type="button"
-            onClick={() => setIsFooterModalOpen(true)}
+            onClick={handleOpenFooterModal}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -683,7 +712,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               {index === 2 && (
                 <button
                   type="button"
-                  onClick={() => setIsFooterModalOpen(true)}
+                  onClick={handleOpenFooterModal}
                   title="Configurar informações exibidas no card da barra de tarefa / rodapé da loja"
                   style={{
                     display: 'flex',
@@ -1169,7 +1198,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
               <button
                 type="button"
-                onClick={() => setIsFooterModalOpen(true)}
+                onClick={handleOpenFooterModal}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',

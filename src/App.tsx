@@ -235,7 +235,10 @@ export const App: React.FC = () => {
       }
       prevPendingCountRef.current = currentPending;
 
-      setSettings(StorageService.getSettings());
+      setSettings(prev => {
+        const fresh = StorageService.getSettings();
+        return JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh;
+      });
       setCategories(StorageService.getCategories());
       setProducts(StorageService.getProducts());
       setNeighborhoods(StorageService.getNeighborhoods());

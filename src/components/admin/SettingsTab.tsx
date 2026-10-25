@@ -3372,10 +3372,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
           <div
             style={{
               backgroundColor: '#ffffff',
-              borderRadius: 20,
+              borderRadius: 18,
               width: '100%',
-              maxWidth: 920,
-              maxHeight: '90vh',
+              maxWidth: 960,
+              maxHeight: '92vh',
               display: 'flex',
               flexDirection: 'column',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
@@ -3385,28 +3385,28 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
           >
             {/* Modal Header */}
             <div style={{
-              padding: '20px 24px',
+              padding: '14px 20px',
               borderBottom: '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               backgroundColor: '#f8fafc'
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
-                  padding: 10,
-                  borderRadius: 12,
+                  padding: 8,
+                  borderRadius: 10,
                   backgroundColor: '#fee2e2',
                   color: 'var(--color-primary, #dc2626)',
                   display: 'flex'
                 }}>
-                  <PanelBottom size={22} />
+                  <PanelBottom size={20} />
                 </div>
                 <div>
-                  <h3 id="footer-modal-title" style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                  <h3 id="footer-modal-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
                     Configurar Informações do Card de Rodapé
                   </h3>
-                  <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                  <p style={{ margin: '1px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
                     Personalize e escolha quais itens são exibidos no rodapé escuro do cardápio digital
                   </p>
                 </div>
@@ -3417,7 +3417,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 style={{
                   background: 'none',
                   border: 'none',
-                  padding: 8,
+                  padding: 6,
                   borderRadius: 8,
                   cursor: 'pointer',
                   color: '#64748b',
@@ -3427,48 +3427,48 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 }}
                 aria-label="Fechar"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             {/* Modal Toolbar: Master Switch & Bulk Action */}
             <div style={{
-              padding: '14px 24px',
+              padding: '10px 20px',
               backgroundColor: '#f1f5f9',
               borderBottom: '1px solid #e2e8f0',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
               flexWrap: 'wrap',
-              gap: 12
+              gap: 8
             }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"
                   checked={formData.footer_enabled !== false}
                   onChange={(e) => setFormData(prev => ({ ...prev, footer_enabled: e.target.checked }))}
-                  style={{ width: 18, height: 18, accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                  style={{ width: 17, height: 17, accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
                 />
-                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                <span style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0f172a' }}>
                   Ativar Exibição do Card de Rodapé no Cardápio
                 </span>
                 {formData.footer_enabled === false && (
-                  <span style={{ fontSize: '0.72rem', backgroundColor: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
-                    Rodapé Oculto no Cardápio
+                  <span style={{ fontSize: '0.7rem', backgroundColor: '#fee2e2', color: '#dc2626', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
+                    Rodapé Oculto
                   </span>
                 )}
               </label>
 
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   type="button"
                   onClick={() => handleToggleAllFooter(true)}
                   style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
+                    padding: '4px 10px',
+                    borderRadius: 6,
                     border: '1px solid #cbd5e1',
                     backgroundColor: '#ffffff',
-                    fontSize: '0.78rem',
+                    fontSize: '0.74rem',
                     fontWeight: 700,
                     color: '#334155',
                     cursor: 'pointer'
@@ -3480,11 +3480,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   type="button"
                   onClick={() => handleToggleAllFooter(false)}
                   style={{
-                    padding: '6px 12px',
-                    borderRadius: 8,
+                    padding: '4px 10px',
+                    borderRadius: 6,
                     border: '1px solid #cbd5e1',
                     backgroundColor: '#ffffff',
-                    fontSize: '0.78rem',
+                    fontSize: '0.74rem',
                     fontWeight: 700,
                     color: '#64748b',
                     cursor: 'pointer'
@@ -3495,30 +3495,40 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               </div>
             </div>
 
-            {/* Modal Body: Options & Real-Time Preview */}
-            <div style={{
-              padding: '20px 24px',
-              overflowY: 'auto',
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 20
-            }}>
-              {/* Toggles Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+            {/* Modal Body: Options & Real-Time Preview com Barra de Rolagem Vertical Elegante */}
+            <div
+              className="footer-modal-scrollable"
+              style={{
+                padding: '14px 20px',
+                overflowY: 'auto',
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                maxHeight: 'calc(92vh - 128px)'
+              }}
+            >
+              {/* Toggles Grid - 4 colunas compactas e organizadas */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(205px, 1fr))',
+                gap: 10
+              }}>
                 {/* Coluna 1: Identidade */}
                 <div style={{
-                  padding: 16,
-                  borderRadius: 14,
+                  padding: '10px 12px',
+                  borderRadius: 12,
                   border: '1px solid #e2e8f0',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
-                    <Building2 size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
-                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Identidade & Empresa</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid #f1f5f9' }}>
+                    <Building2 size={15} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>Identidade & Empresa</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_business_name !== false}
@@ -3527,7 +3537,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Nome do Estabelecimento</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_slogan !== false}
@@ -3536,7 +3546,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Slogan / Descrição Curta</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_cnpj !== false}
@@ -3550,17 +3560,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
                 {/* Coluna 2: Endereço & Atendimento */}
                 <div style={{
-                  padding: 16,
-                  borderRadius: 14,
+                  padding: '10px 12px',
+                  borderRadius: 12,
                   border: '1px solid #e2e8f0',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
-                    <MapPin size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
-                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Endereço & Atendimento</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid #f1f5f9' }}>
+                    <MapPin size={15} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>Endereço & Atendimento</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_address_title !== false}
@@ -3569,7 +3581,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Título ("Endereço & Atendimento")</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_address !== false}
@@ -3578,7 +3590,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Endereço Completo</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_delivery_estimate !== false}
@@ -3587,22 +3599,84 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Estimativa de Entrega</span>
                     </label>
+
+                    {/* Campo de alteração do Tempo de Estimativa de Entrega */}
+                    {formData.footer_show_delivery_estimate !== false && (
+                      <div style={{
+                        marginTop: 4,
+                        padding: '6px 8px',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: 8,
+                        border: '1px solid #e2e8f0',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Clock size={11} style={{ color: '#d97706' }} />
+                            Tempo estimado:
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={formData.delivery_time_estimate || ''}
+                          placeholder="ex: 40 min ou 40-50 min"
+                          onChange={(e) => setFormData(prev => ({ ...prev, delivery_time_estimate: e.target.value }))}
+                          style={{
+                            width: '100%',
+                            padding: '4px 7px',
+                            borderRadius: 6,
+                            border: '1px solid #cbd5e1',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            color: '#0f172a',
+                            backgroundColor: '#ffffff',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                        <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', marginTop: 2 }}>
+                          {['30 min', '40 min', '50 min', '60 min'].map((preset) => (
+                            <button
+                              key={preset}
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, delivery_time_estimate: preset }))}
+                              style={{
+                                padding: '2px 5px',
+                                borderRadius: 4,
+                                border: '1px solid',
+                                borderColor: formData.delivery_time_estimate === preset ? 'var(--color-primary, #dc2626)' : '#cbd5e1',
+                                backgroundColor: formData.delivery_time_estimate === preset ? '#fee2e2' : '#ffffff',
+                                color: formData.delivery_time_estimate === preset ? 'var(--color-primary, #dc2626)' : '#475569',
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {preset}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Coluna 3: Canais de Contato */}
                 <div style={{
-                  padding: 16,
-                  borderRadius: 14,
+                  padding: '10px 12px',
+                  borderRadius: 12,
                   border: '1px solid #e2e8f0',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
-                    <Phone size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
-                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Canais de Contato & Acesso</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid #f1f5f9' }}>
+                    <Phone size={15} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>Canais de Contato & Acesso</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_contact_title !== false}
@@ -3611,7 +3685,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Título ("Canais de Contato")</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_whatsapp !== false}
@@ -3620,7 +3694,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>WhatsApp de Atendimento</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_instagram !== false}
@@ -3629,31 +3703,33 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       />
                       <span>Instagram</span>
                     </label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_admin_link !== false}
                         onChange={(e) => setFormData(prev => ({ ...prev, footer_show_admin_link: e.target.checked }))}
                         style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
                       />
-                      <span>Botão Acesso Painel Administrativo</span>
+                      <span>Botão Acesso Painel Admin</span>
                     </label>
                   </div>
                 </div>
 
                 {/* Coluna 4: Direitos */}
                 <div style={{
-                  padding: 16,
-                  borderRadius: 14,
+                  padding: '10px 12px',
+                  borderRadius: 12,
                   border: '1px solid #e2e8f0',
-                  backgroundColor: '#ffffff'
+                  backgroundColor: '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
-                    <Heart size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
-                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Rodapé Inferior & Direitos</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, paddingBottom: 5, borderBottom: '1px solid #f1f5f9' }}>
+                    <Heart size={15} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a' }}>Rodapé Inferior & Direitos</span>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.78rem', color: '#334155', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={formData.footer_show_copyright !== false}
@@ -3668,11 +3744,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
               {/* Pré-visualização ao Vivo do Card */}
               <div style={{
-                borderRadius: 16,
+                borderRadius: 14,
                 border: '1px solid #1e293b',
                 backgroundColor: '#0a0a0a',
                 color: '#e2e8f0',
-                padding: '24px 20px 16px',
+                padding: '14px 16px 12px',
                 position: 'relative',
                 overflow: 'hidden'
               }}>
@@ -3680,66 +3756,66 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: 16,
-                  paddingBottom: 10,
+                  marginBottom: 10,
+                  paddingBottom: 6,
                   borderBottom: '1px solid #262626'
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
-                    <Eye size={14} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+                    <Eye size={13} />
                     <span>Prévia em Tempo Real no Cardápio</span>
                   </div>
                   {formData.footer_enabled === false && (
-                    <span style={{ fontSize: '0.72rem', backgroundColor: '#ef4444', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                    <span style={{ fontSize: '0.68rem', backgroundColor: '#ef4444', color: '#ffffff', padding: '1px 6px', borderRadius: 4, fontWeight: 700 }}>
                       Card desativado (não aparecerá no cardápio)
                     </span>
                   )}
                 </div>
 
                 {formData.footer_enabled === false ? (
-                  <div style={{ textAlign: 'center', padding: '24px 12px', color: '#64748b', fontSize: '0.88rem' }}>
+                  <div style={{ textAlign: 'center', padding: '16px 10px', color: '#64748b', fontSize: '0.82rem' }}>
                     O card de rodapé está desativado. O cardápio digital terminará logo após a listagem de produtos.
                   </div>
                 ) : (
                   <div>
                     <div style={{
                       display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                      gap: 20
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 14
                     }}>
                       {/* Coluna 1 Preview */}
                       <div>
                         {formData.footer_show_business_name !== false && (
-                          <h4 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.04em' }}>
+                          <h4 style={{ margin: '0 0 4px', fontSize: '0.98rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.03em' }}>
                             {formData.business_name || 'ALFA SALGADOS'}
                           </h4>
                         )}
                         {formData.footer_show_slogan !== false && (
-                          <p style={{ margin: '0 0 8px', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                          <p style={{ margin: '0 0 6px', fontSize: '0.74rem', color: '#94a3b8', lineHeight: 1.35 }}>
                             {formData.business_description || 'Os melhores sabores se faz com carinho'}
                           </p>
                         )}
                         {formData.footer_show_cnpj !== false && formData.cnpj && (
-                          <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                          <div style={{ fontSize: '0.7rem', color: '#cbd5e1' }}>
                             CNPJ: {formatCnpj(formData.cnpj)}
                           </div>
                         )}
                         {formData.footer_show_business_name === false &&
                          formData.footer_show_slogan === false &&
                          formData.footer_show_cnpj === false && (
-                          <span style={{ fontSize: '0.72rem', color: '#475569', fontStyle: 'italic' }}>Coluna 1 vazia</span>
+                          <span style={{ fontSize: '0.7rem', color: '#475569', fontStyle: 'italic' }}>Coluna 1 vazia</span>
                         )}
                       </div>
 
                       {/* Coluna 2 Preview */}
                       <div>
                         {formData.footer_show_address_title !== false && (
-                          <h5 style={{ margin: '0 0 8px', fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9' }}>
+                          <h5 style={{ margin: '0 0 6px', fontSize: '0.82rem', fontWeight: 700, color: '#f1f5f9' }}>
                             Endereço & Atendimento
                           </h5>
                         )}
                         {formData.footer_show_address !== false && (
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.78rem', color: '#cbd5e1', marginBottom: 6 }}>
-                            <MapPin size={14} style={{ marginTop: 2, flexShrink: 0 }} />
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: '0.74rem', color: '#cbd5e1', marginBottom: 4 }}>
+                            <MapPin size={13} style={{ marginTop: 2, flexShrink: 0 }} />
                             <span>
                               {[formData.address_street, formData.address_number, formData.address_neighborhood, formData.address_city]
                                 .filter(Boolean)
@@ -3748,9 +3824,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           </div>
                         )}
                         {formData.footer_show_delivery_estimate !== false && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#94a3b8' }}>
-                            <Clock size={13} />
-                            <span>Entrega estimada em ~{formData.estimated_delivery_time || 40} min</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.74rem', color: '#fbbf24' }}>
+                            <Clock size={12} />
+                            <span>Entrega estimada em ~{formData.delivery_time_estimate || '40 min'}</span>
                           </div>
                         )}
                       </div>
@@ -3758,19 +3834,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                       {/* Coluna 3 Preview */}
                       <div>
                         {formData.footer_show_contact_title !== false && (
-                          <h5 style={{ margin: '0 0 8px', fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9' }}>
+                          <h5 style={{ margin: '0 0 6px', fontSize: '0.82rem', fontWeight: 700, color: '#f1f5f9' }}>
                             Canais de Contato
                           </h5>
                         )}
                         {formData.footer_show_whatsapp !== false && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#cbd5e1', marginBottom: 6 }}>
-                            <Phone size={13} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.74rem', color: '#86efac', marginBottom: 4 }}>
+                            <Phone size={12} />
                             <span>WhatsApp: {formData.contact_phone || '77 99194-7697'}</span>
                           </div>
                         )}
                         {formData.footer_show_instagram !== false && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#cbd5e1', marginBottom: 10 }}>
-                            <Globe size={13} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.74rem', color: '#f472b6', marginBottom: 6 }}>
+                            <Globe size={12} />
                             <span>Instagram: @{formData.instagram || 'alfa.salgados.vca'}</span>
                           </div>
                         )}
@@ -3778,15 +3854,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                           <div style={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 6,
-                            padding: '5px 10px',
+                            gap: 5,
+                            padding: '3px 8px',
                             borderRadius: 6,
                             border: '1px solid #334155',
-                            fontSize: '0.7rem',
+                            fontSize: '0.68rem',
                             color: '#94a3b8',
                             backgroundColor: 'rgba(255,255,255,0.03)'
                           }}>
-                            <ShieldCheck size={12} />
+                            <ShieldCheck size={11} />
                             <span>Acesso Painel Administrativo</span>
                           </div>
                         )}
@@ -3795,11 +3871,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
 
                     {formData.footer_show_copyright !== false && (
                       <div style={{
-                        marginTop: 20,
-                        paddingTop: 12,
+                        marginTop: 12,
+                        paddingTop: 8,
                         borderTop: '1px solid #262626',
                         textAlign: 'center',
-                        fontSize: '0.72rem',
+                        fontSize: '0.68rem',
                         color: '#64748b'
                       }}>
                         {formData.business_name || 'Alfa Salgados'} Delivery © {new Date().getFullYear()} • Plataforma Própria Independente ♡
@@ -3813,44 +3889,44 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
             {/* Modal Error Alert */}
             {saveError && (
               <div role="alert" style={{
-                margin: '0 24px 12px',
-                padding: '10px 16px',
+                margin: '0 20px 8px',
+                padding: '8px 14px',
                 backgroundColor: '#fef2f2',
                 border: '1px solid #fca5a5',
-                borderRadius: 10,
+                borderRadius: 8,
                 color: '#b91c1c',
-                fontSize: '0.82rem',
+                fontSize: '0.78rem',
                 fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
-                gap: 8
+                gap: 6
               }}>
-                <AlertTriangle size={16} />
+                <AlertTriangle size={15} />
                 <span>{saveError}</span>
               </div>
             )}
 
             {/* Modal Footer Actions */}
             <div style={{
-              padding: '16px 24px',
+              padding: '10px 20px',
               borderTop: '1px solid #e2e8f0',
               backgroundColor: '#f8fafc',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-end',
-              gap: 12
+              gap: 10
             }}>
               <button
                 type="button"
                 onClick={() => setIsFooterModalOpen(false)}
                 style={{
-                  padding: '10px 18px',
-                  borderRadius: 10,
+                  padding: '8px 16px',
+                  borderRadius: 8,
                   border: '1px solid #cbd5e1',
                   backgroundColor: '#ffffff',
                   color: '#475569',
                   fontWeight: 700,
-                  fontSize: '0.85rem',
+                  fontSize: '0.82rem',
                   cursor: 'pointer'
                 }}
               >
@@ -3869,17 +3945,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
-                  padding: '10px 20px',
-                  borderRadius: 10,
+                  gap: 6,
+                  padding: '8px 18px',
+                  borderRadius: 8,
                   fontWeight: 800,
-                  fontSize: '0.85rem',
+                  fontSize: '0.82rem',
                   opacity: saving ? 0.7 : 1,
                   cursor: saving ? 'not-allowed' : 'pointer'
                 }}
                 data-admin-ui="button"
               >
-                <Save size={16} />
+                <Save size={15} />
                 <span>{saving ? 'Salvando...' : 'Salvar Configurações'}</span>
               </button>
             </div>

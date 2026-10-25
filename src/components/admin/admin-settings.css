@@ -43,6 +43,7 @@
 .footer-modal-scrollable {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 #f8fafc;
+  min-height: 0;
 }
 .footer-modal-scrollable::-webkit-scrollbar {
   width: 7px;

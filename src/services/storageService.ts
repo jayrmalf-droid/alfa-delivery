@@ -92,7 +92,8 @@ export const StorageService = {
       footer_show_whatsapp: stored.footer_show_whatsapp ?? true,
       footer_show_instagram: stored.footer_show_instagram ?? true,
       footer_show_admin_link: stored.footer_show_admin_link ?? true,
-      footer_show_copyright: stored.footer_show_copyright ?? true
+      footer_show_copyright: stored.footer_show_copyright ?? true,
+      footer_copyright_text: stored.footer_copyright_text || ''
     };
   },
   async updateSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {

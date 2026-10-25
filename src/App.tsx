@@ -1287,7 +1287,7 @@ export const App: React.FC = () => {
               justifyContent: 'center',
               gap: 4
             }}>
-              <span>Alfa Salgados Delivery &copy; {new Date().getFullYear()} • Plataforma Própria Independente</span>
+              <span>{settings.footer_copyright_text || `Alfa Salgados Delivery © ${new Date().getFullYear()} • Plataforma Própria Independente`}</span>
               <Heart size={12} style={{ color: '#ef4444' }} />
             </div>
           )}

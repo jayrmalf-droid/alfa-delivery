@@ -88,6 +88,7 @@ export interface StoreSettings {
   footer_show_instagram?: boolean;
   footer_show_admin_link?: boolean;
   footer_show_copyright?: boolean;
+  footer_copyright_text?: string;
   [key: string]: any;
 }
 

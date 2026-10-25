@@ -1152,121 +1152,147 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Storefront Footer (Section 23) */}
-      <footer className="store-footer" id="footer-section" style={{
-        marginTop: 60,
-        backgroundColor: '#0f172a',
-        color: '#94a3b8',
-        padding: '50px 16px 40px',
-        borderTop: '1px solid #1e293b'
-      }}>
-        <div style={{
-          maxWidth: 1200,
-          margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
-          gap: 32,
-          textAlign: 'left'
+      {/* Storefront Footer / Card da Barra de Rodapé (Configurável no Painel) */}
+      {(settings.footer_enabled ?? true) && (
+        <footer className="store-footer" id="footer-section" style={{
+          marginTop: 60,
+          backgroundColor: '#0f172a',
+          color: '#94a3b8',
+          padding: '50px 16px 40px',
+          borderTop: '1px solid #1e293b'
         }}>
-          {/* Col 1: Brand */}
-          <div>
-            <h3 style={{ color: '#fff', fontSize: '1.35rem', fontWeight: 900, marginBottom: 8 }}>
-              {settings.business_name}
-            </h3>
-            <p style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.5, marginBottom: 16 }}>
-              {settings.business_description || 'Os melhores sabores se faz com carinho. Salgadinhos fritos na hora para suas comemorações.'}
-            </p>
-            {settings.cnpj && (
-              <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                CNPJ: {settings.cnpj}
-              </p>
+          <div style={{
+            maxWidth: 1200,
+            margin: '0 auto',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
+            gap: 32,
+            textAlign: 'left'
+          }}>
+            {/* Col 1: Brand */}
+            {((settings.footer_show_business_name ?? true) || (settings.footer_show_slogan ?? true) || ((settings.footer_show_cnpj ?? true) && settings.cnpj)) && (
+              <div>
+                {(settings.footer_show_business_name ?? true) && (
+                  <h3 style={{ color: '#fff', fontSize: '1.35rem', fontWeight: 900, marginBottom: 8 }}>
+                    {settings.business_name}
+                  </h3>
+                )}
+                {(settings.footer_show_slogan ?? true) && (
+                  <p style={{ fontSize: '0.88rem', color: '#cbd5e1', lineHeight: 1.5, marginBottom: 16 }}>
+                    {settings.business_description || 'Os melhores sabores se faz com carinho. Salgadinhos fritos na hora para suas comemorações.'}
+                  </p>
+                )}
+                {(settings.footer_show_cnpj ?? true) && settings.cnpj && (
+                  <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                    CNPJ: {settings.cnpj}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Col 2: Location & Hours */}
+            {((settings.footer_show_address_title ?? true) || (settings.footer_show_address ?? true) || (settings.footer_show_delivery_estimate ?? true)) && (
+              <div>
+                {(settings.footer_show_address_title ?? true) && (
+                  <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: 12 }}>
+                    Endereço & Atendimento
+                  </h4>
+                )}
+                {(settings.footer_show_address ?? true) && (
+                  <p style={{ fontSize: '0.85rem', color: '#cbd5e1', display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8 }}>
+                    <MapPin size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
+                    <span>{settings.store_address}, Nº {settings.store_address_number} - {settings.store_neighborhood}, Vitória da Conquista - BA</span>
+                  </p>
+                )}
+                {(settings.footer_show_delivery_estimate ?? true) && (
+                  <p style={{ fontSize: '0.85rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <Clock size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <span>Entrega estimada em ~{settings.delivery_time_estimate || '40 min'}</span>
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Col 3: Social & Contact */}
+            {((settings.footer_show_contact_title ?? true) || (settings.footer_show_whatsapp ?? true) || ((settings.footer_show_instagram ?? true) && settings.instagram) || (settings.footer_show_admin_link ?? true)) && (
+              <div>
+                {(settings.footer_show_contact_title ?? true) && (
+                  <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: 12 }}>
+                    Canais de Contato
+                  </h4>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {(settings.footer_show_whatsapp ?? true) && (
+                    <a
+                      href={`https://wa.me/${normalizePhone(settings.whatsapp || '77991947697')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#86efac', textDecoration: 'none', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <MessageCircle size={16} />
+                      <span>WhatsApp: {settings.whatsapp || '(77) 99194-7697'}</span>
+                    </a>
+                  )}
+
+                  {(settings.footer_show_instagram ?? true) && settings.instagram && (
+                    <a
+                      href={`https://instagram.com/${settings.instagram.replace('@', '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#f472b6', textDecoration: 'none', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Globe size={16} />
+                      <span>Instagram: {settings.instagram}</span>
+                    </a>
+                  )}
+
+                  {(settings.footer_show_admin_link ?? true) && (
+                    <button
+                      onClick={() => navigateTo('admin')}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: '#94a3b8',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        fontSize: '0.78rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        cursor: 'pointer',
+                        width: 'fit-content',
+                        marginTop: 8
+                      }}
+                    >
+                      <ShieldCheck size={14} />
+                      <span>Acesso Painel Administrativo</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
 
-          {/* Col 2: Location & Hours */}
-          <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: 12 }}>
-              Endereço & Atendimento
-            </h4>
-            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 8 }}>
-              <MapPin size={16} style={{ color: '#ef4444', flexShrink: 0, marginTop: 2 }} />
-              <span>{settings.store_address}, Nº {settings.store_address_number} - {settings.store_neighborhood}, Vitória da Conquista - BA</span>
-            </p>
-            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-              <Clock size={16} style={{ color: '#f59e0b', flexShrink: 0 }} />
-              <span>Entrega estimada em ~{settings.delivery_time_estimate || '40 min'}</span>
-            </p>
-          </div>
-
-          {/* Col 3: Social & Contact */}
-          <div>
-            <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, marginBottom: 12 }}>
-              Canais de Contato
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <a
-                href={`https://wa.me/${normalizePhone(settings.whatsapp || '77991947697')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: '#86efac', textDecoration: 'none', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <MessageCircle size={16} />
-                <span>WhatsApp: {settings.whatsapp || '(77) 99194-7697'}</span>
-              </a>
-
-              {settings.instagram && (
-                <a
-                  href={`https://instagram.com/${settings.instagram.replace('@', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: '#f472b6', textDecoration: 'none', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Globe size={16} />
-                  <span>Instagram: {settings.instagram}</span>
-                </a>
-              )}
-
-              <button
-                onClick={() => navigateTo('admin')}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: '#94a3b8',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  cursor: 'pointer',
-                  width: 'fit-content',
-                  marginTop: 8
-                }}
-              >
-                <ShieldCheck size={14} />
-                <span>Acesso Painel Administrativo</span>
-              </button>
+          {(settings.footer_show_copyright ?? true) && (
+            <div style={{
+              maxWidth: 1200,
+              margin: '32px auto 0',
+              paddingTop: 20,
+              borderTop: '1px solid #1e293b',
+              textAlign: 'center',
+              fontSize: '0.78rem',
+              color: '#64748b',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4
+            }}>
+              <span>Alfa Salgados Delivery &copy; {new Date().getFullYear()} • Plataforma Própria Independente</span>
+              <Heart size={12} style={{ color: '#ef4444' }} />
             </div>
-          </div>
-        </div>
-
-        <div style={{
-          maxWidth: 1200,
-          margin: '32px auto 0',
-          paddingTop: 20,
-          borderTop: '1px solid #1e293b',
-          textAlign: 'center',
-          fontSize: '0.78rem',
-          color: '#64748b',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 4
-        }}>
-          <span>Alfa Salgados Delivery &copy; {new Date().getFullYear()} • Plataforma Própria Independente</span>
-          <Heart size={12} style={{ color: '#ef4444' }} />
-        </div>
-      </footer>
+          )}
+        </footer>
+      )}
 
       {/* Fixed Mobile Bottom Nav (Section 31) */}
       <MobileBottomNav

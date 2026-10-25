@@ -80,7 +80,19 @@ export const StorageService = {
       pause_message: stored.pause_message || 'Estamos temporariamente sem receber pedidos.',
       banner_auto_rotate: stored.banner_auto_rotate ?? true,
       banner_rotate_interval: stored.banner_rotate_interval ?? 4,
-      banner_transition_effect: stored.banner_transition_effect || 'slide'
+      banner_transition_effect: stored.banner_transition_effect || 'slide',
+      footer_enabled: stored.footer_enabled ?? true,
+      footer_show_business_name: stored.footer_show_business_name ?? true,
+      footer_show_slogan: stored.footer_show_slogan ?? true,
+      footer_show_cnpj: stored.footer_show_cnpj ?? true,
+      footer_show_address_title: stored.footer_show_address_title ?? true,
+      footer_show_address: stored.footer_show_address ?? true,
+      footer_show_delivery_estimate: stored.footer_show_delivery_estimate ?? true,
+      footer_show_contact_title: stored.footer_show_contact_title ?? true,
+      footer_show_whatsapp: stored.footer_show_whatsapp ?? true,
+      footer_show_instagram: stored.footer_show_instagram ?? true,
+      footer_show_admin_link: stored.footer_show_admin_link ?? true,
+      footer_show_copyright: stored.footer_show_copyright ?? true
     };
   },
   async updateSettings(settings: Partial<StoreSettings>): Promise<StoreSettings> {

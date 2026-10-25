@@ -74,6 +74,20 @@ export interface StoreSettings {
   loyalty_discount_percent?: number;
   loyalty_max_discount_value?: number;
   loyalty_expiration_days?: number;
+
+  // Configurações do Card da Barra de Rodapé (Footer da Loja)
+  footer_enabled?: boolean;
+  footer_show_business_name?: boolean;
+  footer_show_slogan?: boolean;
+  footer_show_cnpj?: boolean;
+  footer_show_address_title?: boolean;
+  footer_show_address?: boolean;
+  footer_show_delivery_estimate?: boolean;
+  footer_show_contact_title?: boolean;
+  footer_show_whatsapp?: boolean;
+  footer_show_instagram?: boolean;
+  footer_show_admin_link?: boolean;
+  footer_show_copyright?: boolean;
   [key: string]: any;
 }
 

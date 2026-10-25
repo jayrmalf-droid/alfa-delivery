@@ -64,7 +64,13 @@ import {
   RefreshCw,
   FileDown,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  PanelBottom,
+  LayoutTemplate,
+  X,
+  MessageCircle,
+  Globe,
+  Heart
 } from 'lucide-react';
 import { SOUND_TYPES, playNewOrderSound, stopOrderSound } from '../../utils/sound';
 
@@ -79,6 +85,25 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [formData, setFormData] = useState<StoreSettings>(settings);
   const [previewScheduledOrder, setPreviewScheduledOrder] = useState(false);
+  const [isFooterModalOpen, setIsFooterModalOpen] = useState(false);
+
+  const handleToggleAllFooter = (enabled: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      footer_show_business_name: enabled,
+      footer_show_slogan: enabled,
+      footer_show_cnpj: enabled,
+      footer_show_address_title: enabled,
+      footer_show_address: enabled,
+      footer_show_delivery_estimate: enabled,
+      footer_show_contact_title: enabled,
+      footer_show_whatsapp: enabled,
+      footer_show_instagram: enabled,
+      footer_show_admin_link: enabled,
+      footer_show_copyright: enabled
+    }));
+  };
+
   const savedSettingsRef = useRef(settings);
   useEffect(() => { savedSettingsRef.current = settings; }, [settings]);
   useEffect(() => () => { applyTheme(savedSettingsRef.current); }, []);
@@ -502,6 +527,30 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
           </button>
 
           <button
+            type="button"
+            onClick={() => setIsFooterModalOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '9px 14px',
+              borderRadius: 10,
+              border: '1px solid #cbd5e1',
+              backgroundColor: '#ffffff',
+              color: '#0f172a',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            title="Configurar informações exibidas no card da barra de rodapé"
+            data-admin-ui="button"
+          >
+            <PanelBottom size={15} style={{ color: 'var(--color-primary, #dc2626)' }} />
+            <span>Card do Rodapé</span>
+          </button>
+
+          <button
             onClick={() => handleSubmit()}
             className="btn btn-primary"
             style={{
@@ -556,52 +605,90 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         {sectionsList.map((tab, index) => {
           const isActive = activeSection === tab.id;
           return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`settings-tab-${tab.id}`}
-              aria-selected={isActive}
-              aria-pressed={isActive}
-              aria-controls="settings-content"
-              tabIndex={isActive ? 0 : -1}
-              onKeyDown={event => { let next=index; if(event.key==='ArrowRight'||event.key==='ArrowDown')next=(index+1)%sectionsList.length;else if(event.key==='ArrowLeft'||event.key==='ArrowUp')next=(index+sectionsList.length-1)%sectionsList.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=sectionsList.length-1;else return;event.preventDefault();setActiveSection(sectionsList[next].id);document.getElementById(`settings-tab-${sectionsList[next].id}`)?.focus(); }}
-              onClick={() => setActiveSection(tab.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '9px 16px',
-                borderRadius: 9,
-                border: 'none',
-                backgroundColor: isActive ? 'var(--color-primary, #dc2626)' : 'transparent',
-                color: isActive ? '#ffffff' : '#64748b',
-                fontWeight: isActive ? 800 : 600,
-                fontSize: '0.84rem',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.15s ease',
-                position: 'relative'
-              }}
-             data-admin-ui="button">
-              <span style={{ display: 'flex', alignItems: 'center' }}>
-                {tab.icon}
-              </span>
-              <span>{tab.label}</span>
-              {tab.badge && (
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 900,
-                  padding: '1px 6px',
-                  borderRadius: 10,
-                  backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : '#fee2e2',
-                  color: isActive ? '#ffffff' : '#dc2626',
-                  textTransform: 'uppercase'
-                }}>
-                  {tab.badge}
+            <React.Fragment key={tab.id}>
+              <button
+                type="button"
+                role="tab"
+                id={`settings-tab-${tab.id}`}
+                aria-selected={isActive}
+                aria-pressed={isActive}
+                aria-controls="settings-content"
+                tabIndex={isActive ? 0 : -1}
+                onKeyDown={event => { let next=index; if(event.key==='ArrowRight'||event.key==='ArrowDown')next=(index+1)%sectionsList.length;else if(event.key==='ArrowLeft'||event.key==='ArrowUp')next=(index+sectionsList.length-1)%sectionsList.length;else if(event.key==='Home')next=0;else if(event.key==='End')next=sectionsList.length-1;else return;event.preventDefault();setActiveSection(sectionsList[next].id);document.getElementById(`settings-tab-${sectionsList[next].id}`)?.focus(); }}
+                onClick={() => setActiveSection(tab.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 16px',
+                  borderRadius: 9,
+                  border: 'none',
+                  backgroundColor: isActive ? 'var(--color-primary, #dc2626)' : 'transparent',
+                  color: isActive ? '#ffffff' : '#64748b',
+                  fontWeight: isActive ? 800 : 600,
+                  fontSize: '0.84rem',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                  position: 'relative'
+                }}
+               data-admin-ui="button">
+                <span style={{ display: 'flex', alignItems: 'center' }}>
+                  {tab.icon}
                 </span>
+                <span>{tab.label}</span>
+                {tab.badge && (
+                  <span style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 900,
+                    padding: '1px 6px',
+                    borderRadius: 10,
+                    backgroundColor: isActive ? 'rgba(255,255,255,0.25)' : '#fee2e2',
+                    color: isActive ? '#ffffff' : '#dc2626',
+                    textTransform: 'uppercase'
+                  }}>
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+              {index === 2 && (
+                <button
+                  type="button"
+                  onClick={() => setIsFooterModalOpen(true)}
+                  title="Configurar informações exibidas no card da barra de tarefa / rodapé da loja"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '9px 16px',
+                    borderRadius: 9,
+                    border: '1.5px dashed #cbd5e1',
+                    backgroundColor: '#f8fafc',
+                    color: '#0f172a',
+                    fontWeight: 800,
+                    fontSize: '0.84rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}
+                  data-admin-ui="button"
+                >
+                  <PanelBottom size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                  <span>Card Barra (Rodapé)</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 900,
+                    padding: '1px 6px',
+                    borderRadius: 10,
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    textTransform: 'uppercase'
+                  }}>
+                    Ajustar
+                  </span>
+                </button>
               )}
-            </button>
+            </React.Fragment>
           );
         })}
       </div>
@@ -1023,6 +1110,56 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                    data-admin-ui="field"/>
                 </div>
               </div>
+            </div>
+
+            {/* Banner de Acesso Rápido ao Card da Barra de Rodapé */}
+            <div className="card" style={{
+              padding: '16px 20px',
+              backgroundColor: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 14,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 14
+            }} data-admin-ui="panel">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ padding: 8, borderRadius: 10, backgroundColor: '#fee2e2', color: '#dc2626' }}>
+                  <PanelBottom size={20} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '0.94rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    Card da Barra de Rodapé (Barra de Tarefas da Loja)
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '2px 0 0' }}>
+                    Escolha quais informações (Nome, CNPJ, Endereço, WhatsApp, etc.) aparecem no rodapé do cardápio digital.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsFooterModalOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '9px 16px',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}
+                data-admin-ui="button"
+              >
+                <Sliders size={15} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                <span>Configurar Exibição do Card</span>
+              </button>
             </div>
           </div>
         )}
@@ -3181,6 +3318,520 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
         )}
         {!['backup','audit'].includes(activeSection)&&<div className="settings-save-footer"><p>Salvar alterações aplica os ajustes de todas as seções editadas.</p><button type="submit" className="btn btn-primary" data-admin-ui="button"><Save size={16}/> Salvar configurações</button></div>}
       </form>
+
+      {/* Modal de Configuração do Card da Barra de Rodapé */}
+      {isFooterModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="footer-modal-title"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsFooterModalOpen(false);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: 20,
+              width: '100%',
+              maxWidth: 920,
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: '#f8fafc'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  padding: 10,
+                  borderRadius: 12,
+                  backgroundColor: '#fee2e2',
+                  color: 'var(--color-primary, #dc2626)',
+                  display: 'flex'
+                }}>
+                  <PanelBottom size={22} />
+                </div>
+                <div>
+                  <h3 id="footer-modal-title" style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+                    Configurar Informações do Card de Rodapé
+                  </h3>
+                  <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: '#64748b' }}>
+                    Personalize e escolha quais itens são exibidos no rodapé escuro do cardápio digital
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFooterModalOpen(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 8,
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                aria-label="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Toolbar: Master Switch & Bulk Action */}
+            <div style={{
+              padding: '14px 24px',
+              backgroundColor: '#f1f5f9',
+              borderBottom: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={formData.footer_enabled !== false}
+                  onChange={(e) => setFormData(prev => ({ ...prev, footer_enabled: e.target.checked }))}
+                  style={{ width: 18, height: 18, accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                  Ativar Exibição do Card de Rodapé no Cardápio
+                </span>
+                {formData.footer_enabled === false && (
+                  <span style={{ fontSize: '0.72rem', backgroundColor: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: 6, fontWeight: 700 }}>
+                    Rodapé Oculto no Cardápio
+                  </span>
+                )}
+              </label>
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllFooter(true)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    color: '#334155',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Marcar Todos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleAllFooter(false)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#ffffff',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    color: '#64748b',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Desmarcar Todos
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Options & Real-Time Preview */}
+            <div style={{
+              padding: '20px 24px',
+              overflowY: 'auto',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 20
+            }}>
+              {/* Toggles Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+                {/* Coluna 1: Identidade */}
+                <div style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                    <Building2 size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Identidade & Empresa</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_business_name !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_business_name: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Nome do Estabelecimento</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_slogan !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_slogan: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Slogan / Descrição Curta</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_cnpj !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_cnpj: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>CNPJ da Empresa</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Coluna 2: Endereço & Atendimento */}
+                <div style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                    <MapPin size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Endereço & Atendimento</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_address_title !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_address_title: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Título ("Endereço & Atendimento")</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_address !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_address: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Endereço Completo</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_delivery_estimate !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_delivery_estimate: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Estimativa de Entrega</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Coluna 3: Canais de Contato */}
+                <div style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                    <Phone size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Canais de Contato & Acesso</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_contact_title !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_contact_title: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Título ("Canais de Contato")</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_whatsapp !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_whatsapp: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>WhatsApp de Atendimento</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_instagram !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_instagram: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Instagram</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_admin_link !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_admin_link: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Botão Acesso Painel Administrativo</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Coluna 4: Direitos */}
+                <div style={{
+                  padding: 16,
+                  borderRadius: 14,
+                  border: '1px solid #e2e8f0',
+                  backgroundColor: '#ffffff'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid #f1f5f9' }}>
+                    <Heart size={16} style={{ color: 'var(--color-primary, #dc2626)' }} />
+                    <span style={{ fontSize: '0.86rem', fontWeight: 800, color: '#0f172a' }}>Rodapé Inferior & Direitos</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', color: '#334155', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={formData.footer_show_copyright !== false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, footer_show_copyright: e.target.checked }))}
+                        style={{ accentColor: 'var(--color-primary, #dc2626)', cursor: 'pointer' }}
+                      />
+                      <span>Linha de Direitos Autorais / Copyright</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pré-visualização ao Vivo do Card */}
+              <div style={{
+                borderRadius: 16,
+                border: '1px solid #1e293b',
+                backgroundColor: '#0a0a0a',
+                color: '#e2e8f0',
+                padding: '24px 20px 16px',
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 16,
+                  paddingBottom: 10,
+                  borderBottom: '1px solid #262626'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.78rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+                    <Eye size={14} />
+                    <span>Prévia em Tempo Real no Cardápio</span>
+                  </div>
+                  {formData.footer_enabled === false && (
+                    <span style={{ fontSize: '0.72rem', backgroundColor: '#ef4444', color: '#ffffff', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                      Card desativado (não aparecerá no cardápio)
+                    </span>
+                  )}
+                </div>
+
+                {formData.footer_enabled === false ? (
+                  <div style={{ textAlign: 'center', padding: '24px 12px', color: '#64748b', fontSize: '0.88rem' }}>
+                    O card de rodapé está desativado. O cardápio digital terminará logo após a listagem de produtos.
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                      gap: 20
+                    }}>
+                      {/* Coluna 1 Preview */}
+                      <div>
+                        {formData.footer_show_business_name !== false && (
+                          <h4 style={{ margin: '0 0 6px', fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.04em' }}>
+                            {formData.business_name || 'ALFA SALGADOS'}
+                          </h4>
+                        )}
+                        {formData.footer_show_slogan !== false && (
+                          <p style={{ margin: '0 0 8px', fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                            {formData.business_description || 'Os melhores sabores se faz com carinho'}
+                          </p>
+                        )}
+                        {formData.footer_show_cnpj !== false && formData.cnpj && (
+                          <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>
+                            CNPJ: {formatCnpj(formData.cnpj)}
+                          </div>
+                        )}
+                        {formData.footer_show_business_name === false &&
+                         formData.footer_show_slogan === false &&
+                         formData.footer_show_cnpj === false && (
+                          <span style={{ fontSize: '0.72rem', color: '#475569', fontStyle: 'italic' }}>Coluna 1 vazia</span>
+                        )}
+                      </div>
+
+                      {/* Coluna 2 Preview */}
+                      <div>
+                        {formData.footer_show_address_title !== false && (
+                          <h5 style={{ margin: '0 0 8px', fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9' }}>
+                            Endereço & Atendimento
+                          </h5>
+                        )}
+                        {formData.footer_show_address !== false && (
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: '0.78rem', color: '#cbd5e1', marginBottom: 6 }}>
+                            <MapPin size={14} style={{ marginTop: 2, flexShrink: 0 }} />
+                            <span>
+                              {[formData.address_street, formData.address_number, formData.address_neighborhood, formData.address_city]
+                                .filter(Boolean)
+                                .join(', ') || 'Rua E, Nº 38/39 - Ibirapuera, Vitória da Conquista - BA'}
+                            </span>
+                          </div>
+                        )}
+                        {formData.footer_show_delivery_estimate !== false && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: '#94a3b8' }}>
+                            <Clock size={13} />
+                            <span>Entrega estimada em ~{formData.estimated_delivery_time || 40} min</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Coluna 3 Preview */}
+                      <div>
+                        {formData.footer_show_contact_title !== false && (
+                          <h5 style={{ margin: '0 0 8px', fontSize: '0.88rem', fontWeight: 700, color: '#f1f5f9' }}>
+                            Canais de Contato
+                          </h5>
+                        )}
+                        {formData.footer_show_whatsapp !== false && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#cbd5e1', marginBottom: 6 }}>
+                            <Phone size={13} />
+                            <span>WhatsApp: {formData.contact_phone || '77 99194-7697'}</span>
+                          </div>
+                        )}
+                        {formData.footer_show_instagram !== false && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: '#cbd5e1', marginBottom: 10 }}>
+                            <Globe size={13} />
+                            <span>Instagram: @{formData.instagram || 'alfa.salgados.vca'}</span>
+                          </div>
+                        )}
+                        {formData.footer_show_admin_link !== false && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '5px 10px',
+                            borderRadius: 6,
+                            border: '1px solid #334155',
+                            fontSize: '0.7rem',
+                            color: '#94a3b8',
+                            backgroundColor: 'rgba(255,255,255,0.03)'
+                          }}>
+                            <ShieldCheck size={12} />
+                            <span>Acesso Painel Administrativo</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {formData.footer_show_copyright !== false && (
+                      <div style={{
+                        marginTop: 20,
+                        paddingTop: 12,
+                        borderTop: '1px solid #262626',
+                        textAlign: 'center',
+                        fontSize: '0.72rem',
+                        color: '#64748b'
+                      }}>
+                        {formData.business_name || 'Alfa Salgados'} Delivery © {new Date().getFullYear()} • Plataforma Própria Independente ♡
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div style={{
+              padding: '16px 24px',
+              borderTop: '1px solid #e2e8f0',
+              backgroundColor: '#f8fafc',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              gap: 12
+            }}>
+              <button
+                type="button"
+                onClick={() => setIsFooterModalOpen(false)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 10,
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  await handleSubmit();
+                  setIsFooterModalOpen(false);
+                }}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  fontSize: '0.85rem'
+                }}
+                data-admin-ui="button"
+              >
+                <Save size={16} />
+                <span>Salvar Configurações</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </fieldset>
   );

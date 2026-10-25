@@ -307,7 +307,14 @@ async function validateRecord(key, value) {
     if (value.loyalty_discount_percent != null && (!Number.isFinite(value.loyalty_discount_percent) || value.loyalty_discount_percent < 0 || value.loyalty_discount_percent > 100 || (value.loyalty_enabled !== false && value.loyalty_discount_percent === 0))) fail('Desconto de fidelidade inválido. Use um percentual maior que zero e até 100.');
     for (const key of ['loyalty_min_order_value', 'loyalty_max_discount_value']) if (value[key] != null && (!Number.isFinite(value[key]) || value[key] < 0 || (key === 'loyalty_max_discount_value' && value.loyalty_enabled !== false && value[key] === 0))) fail('Confira o valor mínimo e o limite de desconto da fidelidade.');
     if (value.min_order_value != null && (!Number.isFinite(value.min_order_value) || value.min_order_value < 0)) fail('Pedido mínimo inválido.');
-    for (const d of Object.values(value.weekly_schedule || {})) if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.open) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.close)) fail('Horário inválido.');
+    for (const d of Object.values(value.weekly_schedule || {})) {
+      if (d && d.isOpen !== false) {
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.open) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.close)) fail('Horário inválido.');
+      } else if (d) {
+        if (!d.open || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.open)) d.open = '10:00';
+        if (!d.close || !/^([01]\d|2[0-3]):[0-5]\d$/.test(d.close)) d.close = '22:00';
+      }
+    }
     return;
   }
   if (!Array.isArray(value) || value.length > 5000) fail('Lista inválida.');

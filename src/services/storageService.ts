@@ -56,7 +56,7 @@ export const StorageService = {
   getSettings(): StoreSettings {
     const stored = getFromStorage<StoreSettings>(STORAGE_KEYS.SETTINGS, ({} as StoreSettings));
     return {
-      ...({} as StoreSettings),
+      ...INITIAL_SETTINGS,
       ...stored,
       cnpj: stored.cnpj || '',
       printer_paper_width: stored.printer_paper_width || '80mm',

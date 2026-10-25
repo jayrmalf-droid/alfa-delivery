@@ -84,6 +84,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
   const { saving, saveError, runSave } = useConfirmedSave();
   const [activeSection, setActiveSection] = useState<SettingsSection>('general');
   const [formData, setFormData] = useState<StoreSettings>(settings);
+
+  useEffect(() => {
+    setFormData(settings);
+  }, [settings]);
   const [previewScheduledOrder, setPreviewScheduledOrder] = useState(false);
   const [isFooterModalOpen, setIsFooterModalOpen] = useState(false);
 
@@ -371,13 +375,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
     setFormData(prev => ({ ...prev, weekly_schedule: newSchedule }));
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent): Promise<boolean> => {
     if (e) e.preventDefault();
     setSavedSuccess(false);
-    if (!await runSave(() => StorageService.updateSettings(formData))) return;
+    const ok = await runSave(() => StorageService.updateSettings(formData));
+    if (!ok) return false;
     savedSettingsRef.current = formData;
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
+    return true;
   };
 
   const handleTestPrint = () => {
@@ -551,6 +557,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
           </button>
 
           <button
+            type="button"
+            disabled={saving}
             onClick={() => handleSubmit()}
             className="btn btn-primary"
             style={{
@@ -561,14 +569,35 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               borderRadius: 10,
               fontSize: '0.86rem',
               fontWeight: 800,
-              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.2)'
+              boxShadow: '0 4px 12px rgba(220, 38, 38, 0.2)',
+              opacity: saving ? 0.7 : 1,
+              cursor: saving ? 'not-allowed' : 'pointer'
             }}
            data-admin-ui="button">
             <Save size={16} />
-            <span>Salvar Alterações</span>
+            <span>{saving ? 'Salvando...' : 'Salvar Alterações'}</span>
           </button>
         </div>
       </div>
+
+      {/* Error Notification Alert */}
+      {saveError && (
+        <div role="alert" style={{
+          padding: '12px 18px',
+          backgroundColor: '#fef2f2',
+          border: '1.5px solid #fca5a5',
+          borderRadius: 12,
+          color: '#b91c1c',
+          fontWeight: 700,
+          fontSize: '0.88rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10
+        }}>
+          <AlertTriangle size={18} />
+          <span>Erro ao salvar configurações: {saveError}</span>
+        </div>
+      )}
 
       {/* Success Notification Alert */}
       {savedSuccess && (
@@ -3316,7 +3345,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
             </div>
           </div>
         )}
-        {!['backup','audit'].includes(activeSection)&&<div className="settings-save-footer"><p>Salvar alterações aplica os ajustes de todas as seções editadas.</p><button type="submit" className="btn btn-primary" data-admin-ui="button"><Save size={16}/> Salvar configurações</button></div>}
+        {!['backup','audit'].includes(activeSection)&&<div className="settings-save-footer"><p>Salvar alterações aplica os ajustes de todas as seções editadas.</p><button type="submit" disabled={saving} className="btn btn-primary" data-admin-ui="button" style={{ opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}><Save size={16}/> {saving ? 'Salvando...' : 'Salvar configurações'}</button></div>}
       </form>
 
       {/* Modal de Configuração do Card da Barra de Rodapé */}
@@ -3781,6 +3810,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               </div>
             </div>
 
+            {/* Modal Error Alert */}
+            {saveError && (
+              <div role="alert" style={{
+                margin: '0 24px 12px',
+                padding: '10px 16px',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fca5a5',
+                borderRadius: 10,
+                color: '#b91c1c',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <AlertTriangle size={16} />
+                <span>{saveError}</span>
+              </div>
+            )}
+
             {/* Modal Footer Actions */}
             <div style={{
               padding: '16px 24px',
@@ -3809,9 +3858,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
               </button>
               <button
                 type="button"
+                disabled={saving}
                 onClick={async () => {
-                  await handleSubmit();
-                  setIsFooterModalOpen(false);
+                  const ok = await handleSubmit();
+                  if (ok) {
+                    setIsFooterModalOpen(false);
+                  }
                 }}
                 className="btn btn-primary"
                 style={{
@@ -3821,12 +3873,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ settings }) => {
                   padding: '10px 20px',
                   borderRadius: 10,
                   fontWeight: 800,
-                  fontSize: '0.85rem'
+                  fontSize: '0.85rem',
+                  opacity: saving ? 0.7 : 1,
+                  cursor: saving ? 'not-allowed' : 'pointer'
                 }}
                 data-admin-ui="button"
               >
                 <Save size={16} />
-                <span>Salvar Configurações</span>
+                <span>{saving ? 'Salvando...' : 'Salvar Configurações'}</span>
               </button>
             </div>
           </div>
